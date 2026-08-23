@@ -1,7 +1,8 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.repository.ApexClassRepository
 import com.observability.sfdc.repository.ApexTriggerRepository
+import com.observability.sfdc.service.MetadataService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -9,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class SalesforceMetadataPollingService(
-    private val metadataService: SalesforceMetadataService,
+    private val metadataService: MetadataService,
     private val classRepository: ApexClassRepository,
     private val triggerRepository: ApexTriggerRepository
 ) {

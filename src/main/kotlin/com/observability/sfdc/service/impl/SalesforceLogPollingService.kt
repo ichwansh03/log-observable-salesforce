@@ -1,7 +1,8 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.Log
 import com.observability.sfdc.repository.LogRepository
+import com.observability.sfdc.service.LogService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -12,7 +13,7 @@ import java.time.format.DateTimeFormatter
 
 @Service
 class SalesforceLogPollingService(
-    private val logService: SalesforceLogService,
+    private val logService: LogService,
     private val logRepository: LogRepository
 ) {
     private val logger = LoggerFactory.getLogger(SalesforceLogPollingService::class.java)

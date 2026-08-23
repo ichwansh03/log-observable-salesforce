@@ -1,6 +1,8 @@
 package com.observability.sfdc.service
 
 import com.observability.sfdc.dto.SalesforceQueryResult
+import com.observability.sfdc.service.base.SalesforceServiceInterface
+import com.observability.sfdc.service.impl.SalesforceAuthService
 import org.slf4j.LoggerFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
@@ -13,7 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder
 abstract class SalesforceBaseService(
     protected val authService: SalesforceAuthService,
     protected val apiVersion: String
-) {
+) : SalesforceServiceInterface {
     protected val logger = LoggerFactory.getLogger(this::class.java)
     protected val restTemplate = RestTemplate()
 
@@ -45,11 +47,11 @@ abstract class SalesforceBaseService(
         return UriComponentsBuilder.fromUriString(baseUrl)
     }
 
-    internal open fun <T> querySalesforce(
+    override fun <T> querySalesforce(
         operationName: String,
         query: String,
         typeReference: ParameterizedTypeReference<SalesforceQueryResult<T>>,
-        useTooling: Boolean = true
+        useTooling: Boolean
     ): List<T> {
         return executeWithToken(operationName, emptyList()) { token, instanceUrl ->
             val uri = buildUri(instanceUrl, "query", useTooling)

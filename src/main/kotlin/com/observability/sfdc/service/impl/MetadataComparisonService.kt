@@ -1,14 +1,15 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.MetadataHistory
 import com.observability.sfdc.dto.MetadataDiffDto
 import com.observability.sfdc.repository.MetadataHistoryRepository
+import com.observability.sfdc.service.MetadataService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class MetadataComparisonService(
-    private val metadataService: SalesforceMetadataService,
+    private val metadataService: MetadataService,
     private val historyRepository: MetadataHistoryRepository
 ) {
 

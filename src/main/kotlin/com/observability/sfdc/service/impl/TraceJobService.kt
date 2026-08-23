@@ -1,9 +1,10 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.TraceJob
 import com.observability.sfdc.dto.FrontendTraceFlagRequest
 import com.observability.sfdc.dto.TraceFlagDto
 import com.observability.sfdc.repository.TraceJobRepository
+import com.observability.sfdc.service.LogService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,7 +17,7 @@ import java.time.format.DateTimeFormatter
 @Service
 class TraceJobService(
     private val traceJobRepository: TraceJobRepository,
-    private val logService: SalesforceLogService
+    private val logService: LogService
 ) {
     private val logger = LoggerFactory.getLogger(TraceJobService::class.java)
     private val sfdcFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")

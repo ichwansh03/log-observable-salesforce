@@ -1,4 +1,4 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.ApexClass
 import com.observability.sfdc.domain.ApexTrigger
@@ -9,6 +9,8 @@ import com.observability.sfdc.repository.ApexClassRepository
 import com.observability.sfdc.repository.ApexTriggerRepository
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.MetadataHistoryRepository
+import com.observability.sfdc.service.MetadataService
+import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.core.ParameterizedTypeReference
@@ -27,11 +29,11 @@ class SalesforceMetadataService(
     private val debugLevelRepository: DebugLevelRepository,
     private val metadataHistoryRepository: MetadataHistoryRepository,
     @Value($$"${salesforce.api-version}") apiVersion: String
-    ) : SalesforceBaseService(authService, apiVersion) {
+    ) : SalesforceBaseService(authService, apiVersion), MetadataService {
 
     @Cacheable(value = ["sf_metadata"], key = "'debug_levels_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
     @Transactional
-    fun getAllDebugLevels(name: String? = null, limit: Int = 10, offset: Int = 0): List<DebugLevelDto> {
+    override fun getAllDebugLevels(name: String?, limit: Int, offset: Int): List<DebugLevelDto> {
         var query = "SELECT Id, DeveloperName, MasterLabel, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow FROM DebugLevel "
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
@@ -44,7 +46,7 @@ class SalesforceMetadataService(
         return records
     }
 
-    fun fetchApexClassesFromSalesforce(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexClassDto> {
+    override fun fetchApexClassesFromSalesforce(name: String?, limit: Int, offset: Int): List<ApexClassDto> {
         var query = "SELECT Id, Name, ApiVersion, Status, LengthWithoutComments, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexClass WHERE Status = 'Active' "
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
@@ -62,7 +64,7 @@ class SalesforceMetadataService(
         return records
     }
 
-    fun fetchApexTriggersFromSalesforce(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexTriggerDto> {
+    override fun fetchApexTriggersFromSalesforce(name: String?, limit: Int, offset: Int): List<ApexTriggerDto> {
         var query = "SELECT Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexTrigger WHERE Status = 'Active' "
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
@@ -79,10 +81,10 @@ class SalesforceMetadataService(
     }
 
     @Cacheable(value = ["sf_metadata"], key = "'apex_classes_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
-    fun getAllApexClasses(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexClassDto> = fetchApexClassesFromSalesforce(name, limit, offset)
+    override fun getAllApexClasses(name: String?, limit: Int, offset: Int): List<ApexClassDto> = fetchApexClassesFromSalesforce(name, limit, offset)
 
     @Cacheable(value = ["sf_metadata"], key = "'apex_triggers_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
-    fun getAllApexTriggers(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexTriggerDto> = fetchApexTriggersFromSalesforce(name, limit, offset)
+    override fun getAllApexTriggers(name: String?, limit: Int, offset: Int): List<ApexTriggerDto> = fetchApexTriggersFromSalesforce(name, limit, offset)
 
 
     private fun fetchCoverageForMetadata(ids: List<String>): Map<String, ApexCodeCoverageDto> {
@@ -94,7 +96,7 @@ class SalesforceMetadataService(
     }
 
     // --- Search methods ---
-    fun searchClasses(name: String?, limit: Int = 10, offset: Int = 0): List<ApexClass> {
+    override fun searchClasses(name: String?, limit: Int, offset: Int): List<ApexClass> {
         val pageable = PageRequest.of(offset / limit, limit, Sort.by("name").ascending())
         if (!name.isNullOrBlank()) {
             val dtos = fetchApexClassesFromSalesforce(name, 200, 0)
@@ -106,7 +108,7 @@ class SalesforceMetadataService(
         return if (name.isNullOrBlank()) classRepository.findAllProjectedBy(pageable) else classRepository.findByNameContainingIgnoreCase(name, pageable)
     }
 
-    fun searchTriggers(name: String?, limit: Int = 10, offset: Int = 0): List<ApexTrigger> {
+    override fun searchTriggers(name: String?, limit: Int, offset: Int): List<ApexTrigger> {
         val pageable = PageRequest.of(offset / limit, limit, Sort.by("name").ascending())
         if (!name.isNullOrBlank()) {
             val dtos = fetchApexTriggersFromSalesforce(name, 200, 0)
@@ -118,14 +120,14 @@ class SalesforceMetadataService(
         return if (name.isNullOrBlank()) triggerRepository.findAllProjectedBy(pageable) else triggerRepository.findByNameContainingIgnoreCaseOrSobjectContainingIgnoreCase(name, name, pageable)
     }
 
-    fun searchDebugLevels(name: String?, limit: Int = 10, offset: Int = 0): List<DebugLevel> {
+    override fun searchDebugLevels(name: String?, limit: Int, offset: Int): List<DebugLevel> {
         val pageable = PageRequest.of(offset / limit, limit, Sort.by("developerName").ascending())
         if (!name.isNullOrBlank()) getAllDebugLevels(name, 200, 0) else if (debugLevelRepository.count() == 0L) getAllDebugLevels(null, 200, 0)
         return if (name.isNullOrBlank()) debugLevelRepository.findAllProjectedBy(pageable) else debugLevelRepository.findByDeveloperNameContainingIgnoreCaseOrMasterLabelContainingIgnoreCase(name, name, pageable)
     }
 
     // --- Detail & Related ---
-    fun getMetadataDetail(id: String, type: String): MetadataDetailDto? {
+    override fun getMetadataDetail(id: String, type: String): MetadataDetailDto? {
         val objectType = if (type == "ApexClass" || type == "ApexTrigger") type else return null
         val fields = if (objectType == "ApexTrigger") "Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, Body"
                      else "Id, Name, ApiVersion, Status, LastModifiedDate, LastModifiedBy.Name, Body"
@@ -158,12 +160,12 @@ class SalesforceMetadataService(
     }
 
     // --- Sync Methods ---
-    internal fun syncDebugLevelsToDatabase(dtos: List<DebugLevelDto>) = dtos.distinctBy { it.id }.forEach { dto ->
+    override fun syncDebugLevelsToDatabase(dtos: List<DebugLevelDto>) = dtos.distinctBy { it.id }.forEach { dto ->
         val entity = debugLevelRepository.findBySfdcId(dto.id).orElse(DebugLevel(sfdcId = dto.id, developerName = dto.developerName, masterLabel = dto.masterLabel, apexCode = dto.apexCode, apexProfiling = dto.apexProfiling, callout = dto.callout, database = dto.database, system = dto.system, validation = dto.validation, visualforce = dto.visualforce, workflow = dto.workflow))
         debugLevelRepository.save(entity.copy(developerName = dto.developerName, masterLabel = dto.masterLabel, apexCode = dto.apexCode, apexProfiling = dto.apexProfiling, callout = dto.callout, database = dto.database, system = dto.system, validation = dto.validation, visualforce = dto.visualforce, workflow = dto.workflow))
     }
 
-    internal fun syncClassesToDatabase(dtos: List<ApexClassDto>) = dtos.distinctBy { it.id }.forEach { dto ->
+    override fun syncClassesToDatabase(dtos: List<ApexClassDto>) = dtos.distinctBy { it.id }.forEach { dto ->
         val entity = classRepository.findBySfdcId(dto.id).orElse(ApexClass(sfdcId = dto.id, name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
         if (entity.body != null && entity.body != dto.body) {
             metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexClass", body = entity.body))
@@ -171,7 +173,7 @@ class SalesforceMetadataService(
         classRepository.save(entity.copy(name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
     }
 
-    internal fun syncTriggersToDatabase(dtos: List<ApexTriggerDto>) = dtos.distinctBy { it.id }.forEach { dto ->
+    override fun syncTriggersToDatabase(dtos: List<ApexTriggerDto>) = dtos.distinctBy { it.id }.forEach { dto ->
         val entity = triggerRepository.findBySfdcId(dto.id).orElse(ApexTrigger(sfdcId = dto.id, name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
         if (entity.body != null && entity.body != dto.body) {
             metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexTrigger", body = entity.body))

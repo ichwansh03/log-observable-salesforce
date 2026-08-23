@@ -1,4 +1,4 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.repository.TraceJobRepository
 import org.slf4j.LoggerFactory

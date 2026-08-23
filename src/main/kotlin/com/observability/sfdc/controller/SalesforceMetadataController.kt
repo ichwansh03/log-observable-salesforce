@@ -6,8 +6,8 @@ import com.observability.sfdc.dto.ApexClassDto
 import com.observability.sfdc.dto.ApexTriggerDto
 import com.observability.sfdc.dto.DebugLevelDto
 import com.observability.sfdc.dto.MetadataDetailDto
-import com.observability.sfdc.service.MetadataComparisonService
-import com.observability.sfdc.service.SalesforceMetadataService
+import com.observability.sfdc.service.impl.MetadataComparisonService
+import com.observability.sfdc.service.MetadataService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.*
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/sfdc/metadata")
 @Tag(name = "Salesforce Metadata", description = "Endpoints for retrieving Salesforce metadata information (Classes, Triggers, Debug Levels)")
 class SalesforceMetadataController(
-    private val metadataService: SalesforceMetadataService,
+    private val metadataService: MetadataService,
     private val comparisonService: MetadataComparisonService
 ) {
 

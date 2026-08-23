@@ -2,7 +2,7 @@ package com.observability.sfdc.controller
 
 import com.observability.sfdc.domain.User
 import com.observability.sfdc.dto.SalesforceUserDto
-import com.observability.sfdc.service.SalesforceUserService
+import com.observability.sfdc.service.UserService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.GetMapping
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/sfdc/users")
 @Tag(name = "Salesforce Users", description = "Endpoints for retrieving Salesforce user information")
 class SalesforceUserController(
-    private val userService: SalesforceUserService
+    private val userService: UserService
 ) {
 
     @GetMapping
