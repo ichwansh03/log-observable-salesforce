@@ -1,8 +1,10 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.dto.*
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.LogRepository
+import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
@@ -12,6 +14,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.io.InputStream
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -22,7 +25,7 @@ class SalesforceLogService(
     private val logRepository: LogRepository,
     private val minioService: MinioService,
     @Value($$"${salesforce.api-version}") apiVersion: String
-) : SalesforceBaseService(authService, apiVersion) {
+) : SalesforceBaseService(authService, apiVersion), LogService {
     private val salesforceIdRegex = Regex("^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
 
     init {
@@ -32,7 +35,7 @@ class SalesforceLogService(
     private fun isValidSalesforceId(id: String): Boolean = salesforceIdRegex.matches(id)
     private val sfdcFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
-    fun queryApexLogs(limit: Int = 10, offset: Int = 0, fetchBody: Boolean = true): List<ApexLogDto> {
+    override fun queryApexLogs(limit: Int, offset: Int, fetchBody: Boolean): List<ApexLogDto> {
         val query = "SELECT Id, LogUser.Name, Operation, StartTime, Status, Request, LogLength, DurationMilliseconds FROM ApexLog ORDER BY StartTime DESC LIMIT $limit OFFSET $offset"
         val records = querySalesforce("querying ApexLogs", query, object : ParameterizedTypeReference<SalesforceQueryResult<ApexLogDto>>() {}, useTooling = false)
 
@@ -45,7 +48,7 @@ class SalesforceLogService(
         }
     }
 
-    fun extractClassName(body: String?): String? {
+    override fun extractClassName(body: String?): String? {
         if (body == null) return null
 
         // Pattern to find the last CODE_UNIT_STARTED or CODE_UNIT_FINISHED which contains the entry point.
@@ -81,7 +84,7 @@ class SalesforceLogService(
         return classRegex.find(body)?.groupValues?.get(1)
     }
 
-    fun getLogBody(logId: String): String? {
+    override fun getLogBody(logId: String): String? {
         // 1. Try PostgreSQL first
         val dbLog = logRepository.findBySfdcId(logId)
         if (dbLog.isPresent && dbLog.get().body != null) {
@@ -111,7 +114,7 @@ class SalesforceLogService(
         return body
     }
 
-    fun getLogDownloadStream(logId: String): InputStream? {
+    override fun getLogDownloadStream(logId: String): InputStream? {
         // Ensure log exists in MinIO first
         if (!minioService.exists(logId)) {
             val body = getLogBody(logId) ?: return null // This will fetch from SFDC
@@ -120,13 +123,13 @@ class SalesforceLogService(
         return minioService.getDownloadStream(logId)
     }
 
-    fun createTraceFlag(frontendRequest: FrontendTraceFlagRequest): SalesforceCreateResponse? {
+    override fun createTraceFlag(frontendRequest: FrontendTraceFlagRequest): SalesforceCreateResponse? {
         // Resolve DebugLevel ID
         val debugLevels = debugLevelRepository.findAll()
         val debugLevel = debugLevels.find { it.developerName == frontendRequest.debugLevelName || it.masterLabel == frontendRequest.debugLevelName }
             ?: return SalesforceCreateResponse(id = null, success = false, errors = listOf("DebugLevel '${frontendRequest.debugLevelName}' not found. Please sync metadata first."))
 
-        val now = ZonedDateTime.now(java.time.ZoneId.of("UTC"))
+        val now = ZonedDateTime.now(ZoneId.of("UTC"))
         val startDate = now.format(sfdcFormatter)
         val expirationDate = now
             .plusDays((frontendRequest.durationDays ?: 0).toLong())
@@ -154,19 +157,19 @@ class SalesforceLogService(
         }
     }
 
-    fun getActiveTraceFlags(): List<TraceFlagDto> {
-        val now = ZonedDateTime.now(java.time.ZoneId.of("UTC")).format(sfdcFormatter)
+    override fun getActiveTraceFlags(): List<TraceFlagDto> {
+        val now = ZonedDateTime.now(ZoneId.of("UTC")).format(sfdcFormatter)
         val query = "SELECT Id, TracedEntityId, TracedEntity.Name, StartDate, ExpirationDate, DebugLevelId, DebugLevel.DeveloperName, LogType FROM TraceFlag WHERE ExpirationDate > $now"
         return querySalesforce("querying active TraceFlags", query, object : ParameterizedTypeReference<SalesforceQueryResult<TraceFlagDto>>() {})
     }
 
-    fun getAllTraceFlags(): List<TraceFlagDto> {
+    override fun getAllTraceFlags(): List<TraceFlagDto> {
         val query = "SELECT Id, TracedEntityId, TracedEntity.Name, StartDate, ExpirationDate, DebugLevelId, DebugLevel.DeveloperName, LogType FROM TraceFlag ORDER BY ExpirationDate DESC"
         return querySalesforce("querying all TraceFlags", query, object : ParameterizedTypeReference<SalesforceQueryResult<TraceFlagDto>>() {})
     }
 
     @Transactional
-    fun deleteLog(id: String): Boolean {
+    override fun deleteLog(id: String): Boolean {
         if (!isValidSalesforceId(id)) return false
         
         // 1. Delete from Salesforce
@@ -183,12 +186,12 @@ class SalesforceLogService(
     }
 
     @Transactional
-    fun deleteLogs(ids: List<String>): Map<String, Boolean> {
+    override fun deleteLogs(ids: List<String>): Map<String, Boolean> {
         return ids.associateWith { deleteLog(it) }
     }
 
     @Transactional
-    fun deleteAllLogs(): Int {
+    override fun deleteAllLogs(): Int {
         val query = "SELECT Id FROM ApexLog"
         val records = querySalesforce("querying all ApexLogs for deletion", query, object : ParameterizedTypeReference<SalesforceQueryResult<ApexLogDto>>() {}, useTooling = false)
         
@@ -200,7 +203,7 @@ class SalesforceLogService(
         return count
     }
 
-    fun deleteTraceFlag(id: String): Boolean {
+    override fun deleteTraceFlag(id: String): Boolean {
         if (!isValidSalesforceId(id)) return false
         
         return executeWithToken("deleting TraceFlag $id", false) { token, instanceUrl ->
@@ -209,7 +212,7 @@ class SalesforceLogService(
         }
     }
 
-    fun patchTraceFlag(id: String, startDate: String, expirationDate: String): Boolean {
+    override fun patchTraceFlag(id: String, startDate: String, expirationDate: String): Boolean {
         if (!isValidSalesforceId(id)) return false
         
         return executeWithToken("patching TraceFlag $id", false) { token, instanceUrl ->

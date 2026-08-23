@@ -1,6 +1,7 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.dto.SalesforceTokenResponse
+import com.observability.sfdc.service.AuthService
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
@@ -9,6 +10,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 
 @Service
@@ -17,12 +19,12 @@ class SalesforceAuthService(
     @Value($$"${salesforce.client-id}") private val clientId: String,
     @Value($$"${salesforce.client-secret}") private val clientSecret: String,
     @Value($$"${salesforce.grant-type}") private val grantType: String
-) {
+) : AuthService {
     private val restTemplate = RestTemplate()
     private val logger = LoggerFactory.getLogger(SalesforceAuthService::class.java)
 
     @Cacheable(value = ["sf_tokens"], key = "'client_credentials_token'", unless = "#result == null")
-    fun getAccessToken(): SalesforceTokenResponse? {
+    override fun getAccessToken(): SalesforceTokenResponse? {
         val url = "$loginUrl/services/oauth2/token"
         
         logger.info("Attempting Salesforce authentication at: $url")
@@ -54,7 +56,7 @@ class SalesforceAuthService(
             response
         } catch (e: Exception) {
             logger.error("Error authenticating with Salesforce: ${e.message}")
-            if (e is org.springframework.web.client.HttpClientErrorException) {
+            if (e is HttpClientErrorException) {
                 logger.error("Response Body: ${e.responseBodyAsString}")
             }
             null

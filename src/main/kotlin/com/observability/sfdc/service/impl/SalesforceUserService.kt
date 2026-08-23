@@ -1,9 +1,11 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.User
 import com.observability.sfdc.dto.SalesforceQueryResult
 import com.observability.sfdc.dto.SalesforceUserDto
 import com.observability.sfdc.repository.UserRepository
+import com.observability.sfdc.service.SalesforceBaseService
+import com.observability.sfdc.service.UserService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.core.ParameterizedTypeReference
@@ -17,11 +19,11 @@ class SalesforceUserService(
     authService: SalesforceAuthService,
     private val userRepository: UserRepository,
     @Value($$"${salesforce.api-version}") apiVersion: String
-) : SalesforceBaseService(authService, apiVersion) {
+) : SalesforceBaseService(authService, apiVersion), UserService {
 
     @Cacheable(value = ["sf_users"], key = "'all_users_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
     @Transactional
-    fun getAllUsers(name: String? = null, limit: Int = 10, offset: Int = 0): List<SalesforceUserDto> {
+    override fun getAllUsers(name: String?, limit: Int, offset: Int): List<SalesforceUserDto> {
         var query = "SELECT Id, Name, Username, Email, Profile.Name, IsActive, Entity__c FROM User WHERE IsActive = TRUE OR Name = 'Automated Process' "
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
@@ -34,7 +36,7 @@ class SalesforceUserService(
         return records
     }
 
-    fun searchUsers(name: String?, limit: Int = 10, offset: Int = 0): List<User> {
+    override fun searchUsers(name: String?, limit: Int, offset: Int): List<User> {
         val pageable = PageRequest.of(offset / limit, limit, Sort.by("name").ascending())
         if (!name.isNullOrBlank()) getAllUsers(name = name, limit = 200)
         else if (userRepository.count() == 0L) getAllUsers(limit = 200)

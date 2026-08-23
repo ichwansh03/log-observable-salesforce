@@ -7,8 +7,8 @@ import com.observability.sfdc.dto.FrontendTraceFlagRequest
 import com.observability.sfdc.dto.SalesforceCreateResponse
 import com.observability.sfdc.dto.TraceFlagDto
 import com.observability.sfdc.repository.LogRepository
-import com.observability.sfdc.service.SalesforceLogService
-import com.observability.sfdc.service.TraceJobService
+import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.impl.TraceJobService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/sfdc/logs")
 @Tag(name = "Salesforce Logs", description = "Endpoints for managing and retrieving Salesforce debug logs")
 class SalesforceLogController(
-    private val logService: SalesforceLogService,
+    private val logService: LogService,
     private val logRepository: LogRepository,
     private val traceJobService: TraceJobService
 ) {

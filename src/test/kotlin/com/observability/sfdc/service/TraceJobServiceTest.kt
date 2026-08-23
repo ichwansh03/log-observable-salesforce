@@ -3,6 +3,7 @@ package com.observability.sfdc.service
 import com.observability.sfdc.domain.TraceJob
 import com.observability.sfdc.dto.FrontendTraceFlagRequest
 import com.observability.sfdc.repository.TraceJobRepository
+import com.observability.sfdc.service.impl.TraceJobService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
@@ -11,7 +12,7 @@ import org.mockito.Mockito.*
 class TraceJobServiceTest {
 
     private val traceJobRepository = mock(TraceJobRepository::class.java)
-    private val logService = mock(SalesforceLogService::class.java)
+    private val logService = mock(LogService::class.java)
     private val traceJobService = TraceJobService(traceJobRepository, logService)
 
     @Test

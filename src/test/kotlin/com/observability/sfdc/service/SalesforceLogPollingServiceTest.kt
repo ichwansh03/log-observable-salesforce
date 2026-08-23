@@ -4,13 +4,14 @@ import com.observability.sfdc.domain.Log
 import com.observability.sfdc.dto.ApexLogDto
 import com.observability.sfdc.dto.UserSummaryDto
 import com.observability.sfdc.repository.LogRepository
+import com.observability.sfdc.service.impl.SalesforceLogPollingService
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
 import java.util.*
 
 class SalesforceLogPollingServiceTest {
 
-    private val logService = mock(SalesforceLogService::class.java)
+    private val logService = mock(LogService::class.java)
     private val logRepository = mock(LogRepository::class.java)
     private val pollingService = SalesforceLogPollingService(logService, logRepository)
 

@@ -1,4 +1,4 @@
-package com.observability.sfdc.service
+package com.observability.sfdc.service.impl
 
 import io.minio.*
 import org.slf4j.LoggerFactory
