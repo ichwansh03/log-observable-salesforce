@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Build stage
 FROM eclipse-temurin:25-jdk-jammy AS build
 WORKDIR /app
@@ -6,11 +7,18 @@ WORKDIR /app
 COPY .mvn/ .mvn
 COPY mvnw pom.xml ./
 RUN chmod +x mvnw
-RUN ./mvnw dependency:go-offline
+
+# Download dependencies with retry and cache mount
+RUN --mount=type=cache,target=/root/.m2/repository \
+    for i in 1 2 3; do \
+      ./mvnw dependency:go-offline -B && break || \
+      echo "Attempt $i failed, retrying..." && sleep 5; \
+    done
 
 # Copy the source code and build
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2/repository \
+    ./mvnw clean package -DskipTests -B
 
 # Run stage
 FROM eclipse-temurin:25-jre-jammy
