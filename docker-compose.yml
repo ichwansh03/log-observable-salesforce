@@ -6,12 +6,9 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=redis
       - DB_HOST=db
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - MINIO_URL=http://minio:9000
     depends_on:
       redis:
         condition: service_healthy
