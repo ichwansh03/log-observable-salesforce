@@ -31,6 +31,8 @@ class SalesforceMetadataService(
     @Value($$"${salesforce.api-version}") apiVersion: String
     ) : SalesforceBaseService(authService, apiVersion), MetadataService {
 
+    private val salesforceIdPattern = Regex("^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
+
     @Cacheable(value = ["sf_metadata"], key = "'debug_levels_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
     @Transactional
     override fun getAllDebugLevels(name: String?, limit: Int, offset: Int): List<DebugLevelDto> {
@@ -129,13 +131,15 @@ class SalesforceMetadataService(
     // --- Detail & Related ---
     override fun getMetadataDetail(id: String, type: String): MetadataDetailDto? {
         val objectType = if (type == "ApexClass" || type == "ApexTrigger") type else return null
+        if (!salesforceIdPattern.matches(id)) return null
         val fields = if (objectType == "ApexTrigger") "Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, Body"
                      else "Id, Name, ApiVersion, Status, LastModifiedDate, LastModifiedBy.Name, Body"
         
-        val query = "SELECT $fields FROM $objectType WHERE Id = '${id.trim()}'"
+        val safeId = id.trim().replace("'", "\\'")
+        val query = "SELECT $fields FROM $objectType WHERE Id = '$safeId'"
         return executeWithToken("fetching metadata detail for $id", null) { token, instanceUrl ->
             val uri = buildUri(instanceUrl, "query").queryParam("q", query).build().toUri()
-            val coverage = fetchCoverageForMetadata(listOf(id))[id]
+            val coverage = fetchCoverageForMetadata(listOf(safeId))[safeId]
             
             if (objectType == "ApexTrigger") {
                 val trigger = restTemplate.exchange(uri, HttpMethod.GET, HttpEntity<Unit>(createHeaders(token)), object : ParameterizedTypeReference<SalesforceQueryResult<ApexTriggerDto>>() {}).body?.records?.firstOrNull() ?: return@executeWithToken null
@@ -153,7 +157,8 @@ class SalesforceMetadataService(
 
     internal open fun findRelatedTestClasses(name: String): List<ApexClassDto> {
         return executeWithToken("searching related test classes for $name", emptyList()) { token, instanceUrl ->
-            val sosl = "FIND {$name AND \"@isTest\"} IN ALL FIELDS RETURNING ApexClass (Id, Name, ApiVersion, Status, LastModifiedDate, LastModifiedBy.Name WHERE Name != '$name' AND Status = 'Active')"
+            val safeName = name.replace("'", "\\'")
+            val sosl = "FIND {$safeName AND \"@isTest\"} IN ALL FIELDS RETURNING ApexClass (Id, Name, ApiVersion, Status, LastModifiedDate, LastModifiedBy.Name WHERE Name != '$safeName' AND Status = 'Active')"
             val uri = buildUri(instanceUrl, "search").queryParam("q", sosl).build().toUri()
             restTemplate.exchange(uri, HttpMethod.GET, HttpEntity<Unit>(createHeaders(token)), object : ParameterizedTypeReference<SalesforceSearchResponse<ApexClassDto>>() {}).body?.searchRecords ?: emptyList()
         }

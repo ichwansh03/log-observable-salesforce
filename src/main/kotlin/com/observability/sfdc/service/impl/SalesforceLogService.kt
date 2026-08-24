@@ -85,6 +85,8 @@ class SalesforceLogService(
     }
 
     override fun getLogBody(logId: String): String? {
+        if (!isValidSalesforceId(logId)) return null
+
         // 1. Try PostgreSQL first
         val dbLog = logRepository.findBySfdcId(logId)
         if (dbLog.isPresent && dbLog.get().body != null) {
