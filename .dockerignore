@@ -1,0 +1,11 @@
+.git
+target
+.idea
+*.md
+docker-compose.yml
+.env
+prometheus
+frontend
+frontend/
+.github
+.mvn/wrapper/maven-wrapper.jar
