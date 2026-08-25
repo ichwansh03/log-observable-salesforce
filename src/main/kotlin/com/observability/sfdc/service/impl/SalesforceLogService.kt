@@ -1,6 +1,9 @@
 package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.dto.*
+import com.observability.sfdc.exception.ResourceNotFoundException
+import com.observability.sfdc.exception.SalesforceApiException
+import com.observability.sfdc.exception.ValidationException
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.LogRepository
 import com.observability.sfdc.service.LogService
@@ -85,7 +88,7 @@ class SalesforceLogService(
     }
 
     override fun getLogBody(logId: String): String? {
-        if (!isValidSalesforceId(logId)) return null
+        if (!isValidSalesforceId(logId)) throw ValidationException("Invalid Salesforce ID: $logId", "logId")
 
         // 1. Try PostgreSQL first
         val dbLog = logRepository.findBySfdcId(logId)
@@ -129,7 +132,11 @@ class SalesforceLogService(
         // Resolve DebugLevel ID
         val debugLevels = debugLevelRepository.findAll()
         val debugLevel = debugLevels.find { it.developerName == frontendRequest.debugLevelName || it.masterLabel == frontendRequest.debugLevelName }
-            ?: return SalesforceCreateResponse(id = null, success = false, errors = listOf("DebugLevel '${frontendRequest.debugLevelName}' not found. Please sync metadata first."))
+            ?: throw ResourceNotFoundException(
+                "DebugLevel '${frontendRequest.debugLevelName}' not found. Please sync metadata first.",
+                "DebugLevel",
+                frontendRequest.debugLevelName
+            )
 
         val now = ZonedDateTime.now(ZoneId.of("UTC"))
         val startDate = now.format(sfdcFormatter)
@@ -152,11 +159,11 @@ class SalesforceLogService(
             expirationDate = expirationDate
         )
 
-        return executeWithToken("creating TraceFlag", SalesforceCreateResponse(id = null, success = false, errors = listOf("Authentication failed"))) { token, instanceUrl ->
+        return executeWithToken("creating TraceFlag", null) { token, instanceUrl ->
             val url = buildUri(instanceUrl, "sobjects/TraceFlag").build().toUriString()
             val entity = HttpEntity(sfdcRequest, createHeaders(token, MediaType.APPLICATION_JSON))
             restTemplate.postForObject(url, entity, SalesforceCreateResponse::class.java)
-        }
+        } ?: throw SalesforceApiException("Failed to create TraceFlag — authentication error", "createTraceFlag")
     }
 
     override fun getActiveTraceFlags(): List<TraceFlagDto> {
@@ -172,7 +179,7 @@ class SalesforceLogService(
 
     @Transactional
     override fun deleteLog(id: String): Boolean {
-        if (!isValidSalesforceId(id)) return false
+        if (!isValidSalesforceId(id)) throw ValidationException("Invalid Salesforce ID: $id", "id")
         
         // 1. Delete from Salesforce
         val deletedFromSF = executeWithToken("deleting ApexLog $id", false) { token, instanceUrl ->
@@ -206,7 +213,7 @@ class SalesforceLogService(
     }
 
     override fun deleteTraceFlag(id: String): Boolean {
-        if (!isValidSalesforceId(id)) return false
+        if (!isValidSalesforceId(id)) throw ValidationException("Invalid Salesforce ID: $id", "id")
         
         return executeWithToken("deleting TraceFlag $id", false) { token, instanceUrl ->
             val uri = buildUri(instanceUrl, "sobjects/TraceFlag/$id").build().toUri()
@@ -215,7 +222,7 @@ class SalesforceLogService(
     }
 
     override fun patchTraceFlag(id: String, startDate: String, expirationDate: String): Boolean {
-        if (!isValidSalesforceId(id)) return false
+        if (!isValidSalesforceId(id)) throw ValidationException("Invalid Salesforce ID: $id", "id")
         
         return executeWithToken("patching TraceFlag $id", false) { token, instanceUrl ->
             val uri = buildUri(instanceUrl, "sobjects/TraceFlag/$id").build().toUri()

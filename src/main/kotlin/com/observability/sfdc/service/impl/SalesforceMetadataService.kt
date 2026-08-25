@@ -5,6 +5,8 @@ import com.observability.sfdc.domain.ApexTrigger
 import com.observability.sfdc.domain.DebugLevel
 import com.observability.sfdc.domain.MetadataHistory
 import com.observability.sfdc.dto.*
+import com.observability.sfdc.exception.ResourceNotFoundException
+import com.observability.sfdc.exception.ValidationException
 import com.observability.sfdc.repository.ApexClassRepository
 import com.observability.sfdc.repository.ApexTriggerRepository
 import com.observability.sfdc.repository.DebugLevelRepository
@@ -130,8 +132,8 @@ class SalesforceMetadataService(
 
     // --- Detail & Related ---
     override fun getMetadataDetail(id: String, type: String): MetadataDetailDto? {
-        val objectType = if (type == "ApexClass" || type == "ApexTrigger") type else return null
-        if (!salesforceIdPattern.matches(id)) return null
+        val objectType = if (type == "ApexClass" || type == "ApexTrigger") type else throw ValidationException("Invalid metadata type: $type. Must be 'ApexClass' or 'ApexTrigger'", "type")
+        if (!salesforceIdPattern.matches(id)) throw ValidationException("Invalid Salesforce ID: $id", "id")
         val fields = if (objectType == "ApexTrigger") "Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, Body"
                      else "Id, Name, ApiVersion, Status, LastModifiedDate, LastModifiedBy.Name, Body"
         

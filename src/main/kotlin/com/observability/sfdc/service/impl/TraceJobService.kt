@@ -3,6 +3,9 @@ package com.observability.sfdc.service.impl
 import com.observability.sfdc.domain.TraceJob
 import com.observability.sfdc.dto.FrontendTraceFlagRequest
 import com.observability.sfdc.dto.TraceFlagDto
+import com.observability.sfdc.exception.ConflictException
+import com.observability.sfdc.exception.ResourceNotFoundException
+import com.observability.sfdc.exception.ValidationException
 import com.observability.sfdc.repository.TraceJobRepository
 import com.observability.sfdc.service.LogService
 import org.slf4j.LoggerFactory
@@ -27,7 +30,7 @@ class TraceJobService(
     fun createJob(request: FrontendTraceFlagRequest): TraceJob {
         val totalMinutes = request.getTotalMinutes()
         if (totalMinutes <= 0) {
-            throw IllegalArgumentException("Total duration must be at least 1 minute")
+            throw ValidationException("Total duration must be at least 1 minute", "durationMinutes")
         }
 
         val startTime = Instant.now()
@@ -59,7 +62,7 @@ class TraceJobService(
 
     @Transactional
     fun cancelJob(id: Long) {
-        val job = traceJobRepository.findById(id).orElseThrow { RuntimeException("Job not found") }
+        val job = traceJobRepository.findById(id).orElseThrow { ResourceNotFoundException("TraceJob not found", "TraceJob", id.toString()) }
         job.status = "CANCELLED"
         job.sfdcTraceFlagId?.let { 
             logService.deleteTraceFlag(it)
@@ -117,7 +120,7 @@ class TraceJobService(
         // Check if this SFDC TraceFlag is already managed by a local job
         val existingJob = traceJobRepository.findAll().find { it.sfdcTraceFlagId == traceFlag.id }
         if (existingJob != null) {
-            throw IllegalStateException("This Salesforce TraceFlag is already managed by Job #${existingJob.id}")
+            throw ConflictException("This Salesforce TraceFlag is already managed by Job #${existingJob.id}", "TraceFlag")
         }
 
         val now = Instant.now()
