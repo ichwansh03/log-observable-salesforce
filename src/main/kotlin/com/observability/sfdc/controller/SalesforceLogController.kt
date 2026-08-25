@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -59,8 +58,8 @@ class SalesforceLogController(
 
     @GetMapping("/{id}/body")
     @Operation(summary = "Get Log Body", description = "Fetches the full text body of a specific Apex log, checking local storage first.")
-    fun getLogBody(@PathVariable id: String): String? {
-        return logService.getLogBody(id)
+    fun getLogBody(@PathVariable id: String): String {
+        return logService.getLogBody(id) ?: ""
     }
 
     @GetMapping("/{id}/download")
@@ -70,23 +69,20 @@ class SalesforceLogController(
         @RequestParam(required = false) operation: String?
     ): ResponseEntity<org.springframework.core.io.Resource> {
         val stream = logService.getLogDownloadStream(id)
-        return if (stream != null) {
-            val downloadName = "${operation ?: "log"}_$id.log.gz"
-            val resource = org.springframework.core.io.InputStreamResource(stream)
-            ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.parseMediaType("application/gzip"))
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$downloadName\"")
-                .body(resource)
-        } else {
-            ResponseEntity.status(HttpStatus.NOT_FOUND).build()
-        }
+            ?: throw com.observability.sfdc.exception.ResourceNotFoundException("Log not available for download", "Log", id)
+        val downloadName = "${operation ?: "log"}_$id.log.gz"
+        val resource = org.springframework.core.io.InputStreamResource(stream)
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType("application/gzip"))
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$downloadName\"")
+            .body(resource)
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Log", description = "Deletes a specific Apex log from Salesforce and local storage.")
     fun deleteLog(@PathVariable id: String): ResponseEntity<Unit> {
-        val deleted = logService.deleteLog(id)
-        return if (deleted) ResponseEntity.ok().build() else ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
+        logService.deleteLog(id)
+        return ResponseEntity.ok().build()
     }
 
     @DeleteMapping
@@ -103,8 +99,8 @@ class SalesforceLogController(
 
     @PostMapping("/trace-flags")
     @Operation(summary = "Create Trace Flag", description = "Creates a new TraceFlag in Salesforce for a target user or class.")
-    fun createTraceFlag(@Valid @RequestBody request: FrontendTraceFlagRequest): SalesforceCreateResponse? {
-        return logService.createTraceFlag(request)
+    fun createTraceFlag(@Valid @RequestBody request: FrontendTraceFlagRequest): SalesforceCreateResponse {
+        return logService.createTraceFlag(request) ?: SalesforceCreateResponse(id = null, success = false, errors = listOf("Failed to create TraceFlag"))
     }
 
     @GetMapping("/trace-flags")
@@ -122,8 +118,8 @@ class SalesforceLogController(
     @DeleteMapping("/trace-flags/{id}")
     @Operation(summary = "Delete Trace Flag", description = "Deletes a specific TraceFlag from Salesforce.")
     fun deleteTraceFlag(@PathVariable id: String): ResponseEntity<Unit> {
-        val deleted = logService.deleteTraceFlag(id)
-        return if (deleted) ResponseEntity.ok().build() else ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
+        logService.deleteTraceFlag(id)
+        return ResponseEntity.ok().build()
     }
 
     // --- Trace Job Endpoints ---
@@ -146,13 +142,8 @@ class SalesforceLogController(
 
     @PostMapping("/trace-jobs/adopt")
     @Operation(summary = "Adopt Existing Trace Flag", description = "Imports an existing Salesforce TraceFlag as a managed trace job.")
-    fun adoptTraceFlag(@RequestBody traceFlag: TraceFlagDto): ResponseEntity<Any> {
-        return try {
-            val job = traceJobService.adoptExistingTraceFlag(traceFlag)
-            ResponseEntity.ok(job)
-        } catch (e: IllegalStateException) {
-            ResponseEntity.status(HttpStatus.CONFLICT).body(mapOf("error" to e.message))
-        }
+    fun adoptTraceFlag(@RequestBody traceFlag: TraceFlagDto): TraceJob {
+        return traceJobService.adoptExistingTraceFlag(traceFlag)
     }
 
     @DeleteMapping("/trace-jobs/{id}")
@@ -162,4 +153,3 @@ class SalesforceLogController(
         return ResponseEntity.ok().build()
     }
 }
-
