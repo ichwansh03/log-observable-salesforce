@@ -2,10 +2,12 @@ package com.observability.sfdc.controller
 
 import com.observability.sfdc.domain.ApexClass
 import com.observability.sfdc.domain.ApexTrigger
+import com.observability.sfdc.domain.Report
 import com.observability.sfdc.dto.ApexClassDto
 import com.observability.sfdc.dto.ApexTriggerDto
 import com.observability.sfdc.dto.DebugLevelDto
 import com.observability.sfdc.dto.MetadataDetailDto
+import com.observability.sfdc.dto.ReportDto
 import com.observability.sfdc.service.impl.MetadataComparisonService
 import com.observability.sfdc.service.MetadataService
 import io.swagger.v3.oas.annotations.Operation
@@ -99,5 +101,26 @@ class SalesforceMetadataController(
     ): List<ApexTrigger> {
         val offset = page * size
         return metadataService.searchTriggers(name, size, offset)
+    }
+
+    @GetMapping("/reports")
+    @Operation(summary = "Get Reports from Salesforce", description = "Retrieves report metadata directly from Salesforce.")
+    fun getReports(
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0") page: Int
+    ): List<ReportDto> {
+        val offset = page * size
+        return metadataService.getAllReports(limit = size, offset = offset)
+    }
+
+    @GetMapping("/reports/db")
+    @Operation(summary = "Search Reports in Database", description = "Searches for report metadata stored in the local database.")
+    fun searchReports(
+        @RequestParam(required = false) name: String?,
+        @RequestParam(defaultValue = "10") size: Int,
+        @RequestParam(defaultValue = "0") page: Int
+    ): List<Report> {
+        val offset = page * size
+        return metadataService.searchReports(name, size, offset)
     }
 }

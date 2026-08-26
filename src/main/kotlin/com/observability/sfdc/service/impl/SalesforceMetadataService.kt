@@ -4,6 +4,7 @@ import com.observability.sfdc.domain.ApexClass
 import com.observability.sfdc.domain.ApexTrigger
 import com.observability.sfdc.domain.DebugLevel
 import com.observability.sfdc.domain.MetadataHistory
+import com.observability.sfdc.domain.Report
 import com.observability.sfdc.dto.*
 import com.observability.sfdc.exception.ResourceNotFoundException
 import com.observability.sfdc.exception.ValidationException
@@ -11,6 +12,7 @@ import com.observability.sfdc.repository.ApexClassRepository
 import com.observability.sfdc.repository.ApexTriggerRepository
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.MetadataHistoryRepository
+import com.observability.sfdc.repository.ReportRepository
 import com.observability.sfdc.service.MetadataService
 import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
@@ -30,6 +32,7 @@ class SalesforceMetadataService(
     private val triggerRepository: ApexTriggerRepository,
     private val debugLevelRepository: DebugLevelRepository,
     private val metadataHistoryRepository: MetadataHistoryRepository,
+    private val reportRepository: ReportRepository,
     @Value($$"${salesforce.api-version}") apiVersion: String
     ) : SalesforceBaseService(authService, apiVersion), MetadataService {
 
@@ -90,6 +93,20 @@ class SalesforceMetadataService(
     @Cacheable(value = ["sf_metadata"], key = "'apex_triggers_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
     override fun getAllApexTriggers(name: String?, limit: Int, offset: Int): List<ApexTriggerDto> = fetchApexTriggersFromSalesforce(name, limit, offset)
 
+    @Cacheable(value = ["sf_metadata"], key = "'reports_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
+    override fun getAllReports(name: String?, limit: Int, offset: Int): List<ReportDto> {
+        var query = "SELECT Id, Name, Description, DeveloperName, FolderName, Format, Type, CreatedDate, CreatedBy.Name, LastModifiedDate, LastModifiedBy.Name FROM Report "
+        if (!name.isNullOrBlank()) {
+            val escapedName = name.replace("'", "\\'")
+            query += "WHERE Name LIKE '%$escapedName%' OR DeveloperName LIKE '%$escapedName%' "
+        }
+        query += "ORDER BY Name ASC LIMIT $limit OFFSET $offset"
+
+        val records = querySalesforce("querying Reports", query, object : ParameterizedTypeReference<SalesforceQueryResult<ReportDto>>() {})
+        if (records.isNotEmpty()) syncReportsToDatabase(records)
+        return records
+    }
+
 
     private fun fetchCoverageForMetadata(ids: List<String>): Map<String, ApexCodeCoverageDto> {
         if (ids.isEmpty()) return emptyMap()
@@ -128,6 +145,18 @@ class SalesforceMetadataService(
         val pageable = PageRequest.of(offset / limit, limit, Sort.by("developerName").ascending())
         if (!name.isNullOrBlank()) getAllDebugLevels(name, 200, 0) else if (debugLevelRepository.count() == 0L) getAllDebugLevels(null, 200, 0)
         return if (name.isNullOrBlank()) debugLevelRepository.findAllProjectedBy(pageable) else debugLevelRepository.findByDeveloperNameContainingIgnoreCaseOrMasterLabelContainingIgnoreCase(name, name, pageable)
+    }
+
+    override fun searchReports(name: String?, limit: Int, offset: Int): List<Report> {
+        val pageable = PageRequest.of(offset / limit, limit, Sort.by("name").ascending())
+        if (!name.isNullOrBlank()) {
+            val dtos = getAllReports(name, 200, 0)
+            syncReportsToDatabase(dtos)
+        } else if (reportRepository.count() == 0L) {
+            val dtos = getAllReports(null, 200, 0)
+            syncReportsToDatabase(dtos)
+        }
+        return if (name.isNullOrBlank()) reportRepository.findAllProjectedBy(pageable) else reportRepository.findByNameContainingIgnoreCaseOrDeveloperNameContainingIgnoreCase(name, name, pageable)
     }
 
     // --- Detail & Related ---
@@ -186,6 +215,11 @@ class SalesforceMetadataService(
             metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexTrigger", body = entity.body))
         }
         triggerRepository.save(entity.copy(name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
+    }
+
+    override fun syncReportsToDatabase(dtos: List<ReportDto>) = dtos.distinctBy { it.id }.forEach { dto ->
+        val entity = reportRepository.findBySfdcId(dto.id).orElse(Report(sfdcId = dto.id, name = dto.name, description = dto.description, developerName = dto.developerName, folderName = dto.folderName, format = dto.format, reportType = dto.reportType, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name))
+        reportRepository.save(entity.copy(name = dto.name, description = dto.description, developerName = dto.developerName, folderName = dto.folderName, format = dto.format, reportType = dto.reportType, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name))
     }
 
     private fun mapTriggerEvents(dto: ApexTriggerDto) = listOfNotNull(if (dto.usageBeforeInsert == true) "Before Insert" else null, if (dto.usageBeforeUpdate == true) "Before Update" else null, if (dto.usageBeforeDelete == true) "Before Delete" else null, if (dto.usageAfterInsert == true) "After Insert" else null, if (dto.usageAfterUpdate == true) "After Update" else null, if (dto.usageAfterDelete == true) "After Delete" else null, if (dto.usageAfterUndelete == true) "After Undelete" else null)
