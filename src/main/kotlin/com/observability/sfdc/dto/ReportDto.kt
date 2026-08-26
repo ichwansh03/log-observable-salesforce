@@ -13,20 +13,11 @@ data class ReportDto(
     @JsonProperty("Name")
     val name: String?,
 
-    @JsonProperty("Description")
-    val description: String?,
-
     @JsonProperty("DeveloperName")
     val developerName: String?,
 
     @JsonProperty("FolderName")
     val folderName: String?,
-
-    @JsonProperty("Format")
-    val format: String?,
-
-    @JsonProperty("Type")
-    val reportType: String?,
 
     @JsonProperty("CreatedDate")
     val createdDate: String?,

@@ -13,11 +13,8 @@ data class Report(
     val sfdcId: String,
 
     val name: String?,
-    val description: String?,
     val developerName: String?,
     val folderName: String?,
-    val format: String?,
-    val reportType: String?,
     val createdDate: String?,
     val createdByName: String?,
     val lastModifiedDate: String?,
