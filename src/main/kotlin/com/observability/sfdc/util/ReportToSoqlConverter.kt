@@ -23,10 +23,17 @@ class ReportToSoqlConverter {
 
     fun convert(reportId: String, describe: ReportDescribeDto): ReportSoqlDto {
         val metadata = describe.reportMetadata
+        val reportTypeMetadata = describe.reportTypeMetadata
         val reportName = metadata?.name
         val detailColumns = metadata?.detailColumns ?: emptyList()
         val filters = metadata?.reportFilters ?: emptyList()
         val booleanFilter = metadata?.reportBooleanFilter
+
+        // Extract objects from reportTypeMetadata categories
+        val objects = reportTypeMetadata?.categories
+            ?.mapNotNull { it.name }
+            ?.distinct()
+            ?: emptyList()
 
         // Step 1: Detect root object from detailColumns
         val rootObject = detectRootObject(detailColumns)
@@ -55,7 +62,12 @@ class ReportToSoqlConverter {
             reportName = reportName,
             rootObject = rootObject,
             soql = soql,
-            filters = filters
+            filters = filters,
+            reportType = metadata?.reportType,
+            reportFormat = metadata?.reportFormat,
+            objects = objects,
+            describeUrl = "/services/data/v61.0/analytics/reports/$reportId/describe",
+            reportUrl = "/lightning/r/Report/$reportId/view"
         )
     }
 
