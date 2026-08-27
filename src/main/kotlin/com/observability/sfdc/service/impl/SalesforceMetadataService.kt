@@ -122,7 +122,8 @@ class SalesforceMetadataService(
 
     override fun convertReportToSoql(reportId: String): ReportSoqlDto? {
         val describe = getReportDescribe(reportId) ?: return null
-        return reportToSoqlConverter.convert(reportId, describe)
+        val instanceUrl = authService.getAccessToken()?.instanceUrl
+        return reportToSoqlConverter.convert(reportId, describe, instanceUrl)
     }
 
 

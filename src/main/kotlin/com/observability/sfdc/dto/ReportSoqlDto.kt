@@ -9,6 +9,6 @@ data class ReportSoqlDto(
     val reportType: ReportTypeDto?,
     val reportFormat: String?,
     val objects: List<String>,
-    val describeUrl: String?,
+    val instanceUrl: String?,
     val reportUrl: String?
 )

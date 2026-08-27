@@ -21,7 +21,7 @@ class ReportToSoqlConverter {
         "startsWith"  to "LIKE"
     )
 
-    fun convert(reportId: String, describe: ReportDescribeDto): ReportSoqlDto {
+    fun convert(reportId: String, describe: ReportDescribeDto, instanceUrl: String?): ReportSoqlDto {
         val metadata = describe.reportMetadata
         val reportTypeMetadata = describe.reportTypeMetadata
         val reportName = metadata?.name
@@ -66,8 +66,8 @@ class ReportToSoqlConverter {
             reportType = metadata?.reportType,
             reportFormat = metadata?.reportFormat,
             objects = objects,
-            describeUrl = "/services/data/v61.0/analytics/reports/$reportId/describe",
-            reportUrl = "/lightning/r/Report/$reportId/view"
+            instanceUrl = instanceUrl,
+            reportUrl = "${instanceUrl}/lightning/r/Report/$reportId/view"
         )
     }
 
