@@ -14,6 +14,7 @@ import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.MetadataHistoryRepository
 import com.observability.sfdc.repository.ReportRepository
 import com.observability.sfdc.service.MetadataService
+import com.observability.sfdc.util.ReportToSoqlConverter
 import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.Cacheable
@@ -33,6 +34,7 @@ class SalesforceMetadataService(
     private val debugLevelRepository: DebugLevelRepository,
     private val metadataHistoryRepository: MetadataHistoryRepository,
     private val reportRepository: ReportRepository,
+    private val reportToSoqlConverter: ReportToSoqlConverter,
     @Value($$"${salesforce.api-version}") apiVersion: String
     ) : SalesforceBaseService(authService, apiVersion), MetadataService {
 
@@ -105,6 +107,22 @@ class SalesforceMetadataService(
         val records = querySalesforce("querying Reports", query, object : ParameterizedTypeReference<SalesforceQueryResult<ReportDto>>() {}, useTooling = false)
         if (records.isNotEmpty()) syncReportsToDatabase(records)
         return records
+    }
+
+    @Cacheable(value = ["sf_metadata"], key = "'report_describe_' + #reportId", unless = "#result == null")
+    override fun getReportDescribe(reportId: String): ReportDescribeDto? {
+        val safeId = reportId.trim().replace("'", "\\'")
+        return executeWithToken("fetching report describe for $safeId", null) { token, instanceUrl ->
+            val uri = "$instanceUrl/services/data/$apiVersion/analytics/reports/$safeId/describe"
+            val entity = HttpEntity<Unit>(createHeaders(token))
+            val response = restTemplate.exchange(uri, HttpMethod.GET, entity, ReportDescribeDto::class.java)
+            response.body
+        }
+    }
+
+    override fun convertReportToSoql(reportId: String): ReportSoqlDto? {
+        val describe = getReportDescribe(reportId) ?: return null
+        return reportToSoqlConverter.convert(reportId, describe)
     }
 
 
