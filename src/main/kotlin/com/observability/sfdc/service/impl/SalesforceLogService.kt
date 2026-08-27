@@ -44,10 +44,14 @@ class SalesforceLogService(
 
         if (!fetchBody || records.isEmpty()) return records
 
-        // Enrich records with Apex Class Name by fetching bodies (will check MinIO first)
+        // Enrich records with Apex Class Name by checking DB first, then fetching body from MinIO
         return records.map { dto ->
-            val body = getLogBody(dto.id)
-            dto.copy(apexClassName = extractClassName(body))
+            val dbLog = logRepository.findBySfdcId(dto.id)
+            val className = dbLog.get().apexClassName ?: run {
+                val body = getLogBody(dto.id)
+                extractClassName(body)
+            }
+            dto.copy(apexClassName = className)
         }
     }
 
@@ -63,19 +67,13 @@ class SalesforceLogService(
             val fullPath = matches.last().groupValues[1].trim()
 
             // Handle Visualforce pages: VF: /apex/PageName -> extract PageName
-            if (fullPath.startsWith("VF: /apex/")) {
-                return fullPath.substringAfterLast("/")
-            }
+            if (fullPath.startsWith("VF: /apex/")) return fullPath.substringAfterLast("/")
 
             // Handle Internal Triggers: __sfdc_trigger/TriggerName -> extract TriggerName
-            if (fullPath.startsWith("__sfdc_trigger/")) {
-                return fullPath.substringAfter("/")
-            }
+            if (fullPath.startsWith("__sfdc_trigger/")) return fullPath.substringAfter("/")
 
             // Handle Triggers: TriggerName on SObject -> keep full trigger context
-            if (fullPath.contains(" on ", ignoreCase = true)) {
-                return fullPath
-            }
+            if (fullPath.contains(" on ", ignoreCase = true)) return fullPath
 
             // Handle Apex Classes: ClassName.methodName -> extract only ClassName
             // Taking the part before the last dot as the metadata name (handles namespaces correctly).
@@ -90,31 +88,18 @@ class SalesforceLogService(
     override fun getLogBody(logId: String): String? {
         if (!isValidSalesforceId(logId)) throw ValidationException("Invalid Salesforce ID: $logId", "logId")
 
-        // 1. Try PostgreSQL first
-        val dbLog = logRepository.findBySfdcId(logId)
-        if (dbLog.isPresent && dbLog.get().body != null) {
-            return dbLog.get().body
-        }
-
-        // 2. Try MinIO next
+        // 1. Try MinIO first (compressed)
         val cachedBody = minioService.downloadLog(logId)
-        if (cachedBody != null) {
-            return cachedBody
-        }
+        if (cachedBody != null) return cachedBody
 
-        // 3. Fallback to Salesforce Tooling API
+        // 2. Fallback to Salesforce Tooling API
         val body = executeWithToken("fetching log body for $logId from Salesforce", null) { token, instanceUrl ->
             val url = buildUri(instanceUrl, "sobjects/ApexLog/$logId/Body").build().toUriString()
             restTemplate.exchange(url, HttpMethod.GET, HttpEntity<Unit>(createHeaders(token)), String::class.java).body
         }
 
-        // 4. Store in MinIO and PostgreSQL for future use
-        if (body != null) {
-            minioService.uploadLog(logId, body)
-            logRepository.findBySfdcId(logId).ifPresent { log ->
-                logRepository.save(log.copy(body = body))
-            }
-        }
+        // 3. Store in MinIO for future use
+        if (body != null) minioService.uploadLog(logId, body)
         
         return body
     }
