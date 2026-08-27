@@ -26,6 +26,7 @@ class ReportToSoqlConverter {
         val reportName = metadata?.name
         val detailColumns = metadata?.detailColumns ?: emptyList()
         val filters = metadata?.reportFilters ?: emptyList()
+        val booleanFilter = metadata?.reportBooleanFilter
 
         // Step 1: Detect root object from detailColumns
         val rootObject = detectRootObject(detailColumns)
@@ -41,8 +42,8 @@ class ReportToSoqlConverter {
                 }
             }
 
-        // Step 3: Build WHERE clause from filters
-        val whereClause = buildWhereClause(filters, rootObject)
+        // Step 3: Build WHERE clause from filters + boolean logic
+        val whereClause = buildWhereClause(filters, rootObject, booleanFilter)
 
         // Step 4: Assemble SOQL
         val selectClause = "SELECT ${columns.joinToString(", ")}"
@@ -71,10 +72,11 @@ class ReportToSoqlConverter {
         return objectCounts.maxByOrNull { it.value }?.key ?: ""
     }
 
-    private fun buildWhereClause(filters: List<ReportFilterDto>, rootObject: String): String {
+    private fun buildWhereClause(filters: List<ReportFilterDto>, rootObject: String, booleanFilter: String?): String {
         if (filters.isEmpty()) return ""
 
-        val filterStrings = filters.map { filter ->
+        // Convert each filter to its SOQL condition string
+        val filterConditions = filters.map { filter ->
             val filterCol = if (rootObject.isNotEmpty() && filter.column?.startsWith("$rootObject.") == true) {
                 filter.column.removePrefix("$rootObject.")
             } else {
@@ -90,7 +92,21 @@ class ReportToSoqlConverter {
             "$filterCol $soqlOperator $formattedValue"
         }
 
-        return " WHERE ${filterStrings.joinToString(" AND ")}"
+        // If booleanFilter exists, replace 1-based indices with actual conditions
+        // e.g. "(1 OR 2) AND 3" → "([condition1] OR [condition2]) AND [condition3]"
+        val whereLogic = if (!booleanFilter.isNullOrBlank()) {
+            var logic = booleanFilter
+            for (i in filterConditions.indices) {
+                val placeholder = (i + 1).toString()
+                logic = logic?.replace(placeholder, "(${filterConditions[i]})")
+            }
+            logic
+        } else {
+            // Default: AND all filters
+            filterConditions.joinToString(" AND ")
+        }
+
+        return " WHERE $whereLogic"
     }
 
     private fun formatFilterValue(value: String?): String {
