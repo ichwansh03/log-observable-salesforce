@@ -8,13 +8,17 @@ import com.observability.sfdc.dto.ApexClassDto
 import com.observability.sfdc.dto.ApexTriggerDto
 import com.observability.sfdc.dto.DebugLevelDto
 import com.observability.sfdc.dto.MetadataDetailDto
+import com.observability.sfdc.dto.ReportDescribeDto
 import com.observability.sfdc.dto.ReportDto
+import com.observability.sfdc.dto.ReportSoqlDto
 
 interface MetadataService {
     fun getAllDebugLevels(name: String? = null, limit: Int = 10, offset: Int = 0): List<DebugLevelDto>
     fun getAllApexClasses(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexClassDto>
     fun getAllApexTriggers(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexTriggerDto>
     fun getAllReports(name: String? = null, limit: Int = 10, offset: Int = 0): List<ReportDto>
+    fun getReportDescribe(reportId: String): ReportDescribeDto?
+    fun convertReportToSoql(reportId: String): ReportSoqlDto?
     fun fetchApexClassesFromSalesforce(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexClassDto>
     fun fetchApexTriggersFromSalesforce(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexTriggerDto>
     fun searchClasses(name: String? = null, limit: Int = 10, offset: Int = 0): List<ApexClass>

@@ -7,7 +7,9 @@ import com.observability.sfdc.dto.ApexClassDto
 import com.observability.sfdc.dto.ApexTriggerDto
 import com.observability.sfdc.dto.DebugLevelDto
 import com.observability.sfdc.dto.MetadataDetailDto
+import com.observability.sfdc.dto.ReportDescribeDto
 import com.observability.sfdc.dto.ReportDto
+import com.observability.sfdc.dto.ReportSoqlDto
 import com.observability.sfdc.service.impl.MetadataComparisonService
 import com.observability.sfdc.service.MetadataService
 import io.swagger.v3.oas.annotations.Operation
@@ -122,5 +124,21 @@ class SalesforceMetadataController(
     ): List<Report> {
         val offset = page * size
         return metadataService.searchReports(name, size, offset)
+    }
+
+    @GetMapping("/reports/{id}/describe")
+    @Operation(summary = "Get Report Describe", description = "Retrieves full report metadata including filters from Salesforce Analytics API.")
+    fun getReportDescribe(
+        @PathVariable id: String
+    ): ReportDescribeDto? {
+        return metadataService.getReportDescribe(id)
+    }
+
+    @GetMapping("/reports/{id}/soql")
+    @Operation(summary = "Convert Report to SOQL", description = "Converts report filters to a SOQL query string.")
+    fun convertReportToSoql(
+        @PathVariable id: String
+    ): ReportSoqlDto? {
+        return metadataService.convertReportToSoql(id)
     }
 }
