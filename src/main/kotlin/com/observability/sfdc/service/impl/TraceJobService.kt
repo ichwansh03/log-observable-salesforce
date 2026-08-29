@@ -7,7 +7,7 @@ import com.observability.sfdc.exception.ConflictException
 import com.observability.sfdc.exception.ResourceNotFoundException
 import com.observability.sfdc.exception.ValidationException
 import com.observability.sfdc.repository.TraceJobRepository
-import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.TraceFlagService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter
 @Service
 class TraceJobService(
     private val traceJobRepository: TraceJobRepository,
-    private val logService: LogService
+    private val traceFlagService: TraceFlagService
 ) {
     private val logger = LoggerFactory.getLogger(TraceJobService::class.java)
     private val sfdcFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
@@ -65,7 +65,7 @@ class TraceJobService(
         val job = traceJobRepository.findById(id).orElseThrow { ResourceNotFoundException("TraceJob not found", "TraceJob", id.toString()) }
         job.status = "CANCELLED"
         job.sfdcTraceFlagId?.let { 
-            logService.deleteTraceFlag(it)
+            traceFlagService.deleteTraceFlag(it)
         }
         traceJobRepository.save(job)
     }
@@ -81,7 +81,7 @@ class TraceJobService(
         if (job.sfdcTraceFlagId == null) {
             // Create NEW
             val duration = Duration.between(now.toInstant(), targetExpiry.toInstant()).toMinutes().coerceAtLeast(1).toInt()
-            val response = logService.createTraceFlag(
+            val response = traceFlagService.createTraceFlag(
                 FrontendTraceFlagRequest(
                     tracedEntityId = job.tracedEntityId,
                     debugLevelName = job.debugLevelName,
@@ -98,7 +98,7 @@ class TraceJobService(
             }
         } else {
             // Sliding Window PATCH
-            val success = logService.patchTraceFlag(
+            val success = traceFlagService.patchTraceFlag(
                 job.sfdcTraceFlagId!!,
                 now.format(sfdcFormatter),
                 targetExpiry.format(sfdcFormatter)

@@ -13,7 +13,11 @@ import com.observability.sfdc.repository.ApexTriggerRepository
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.MetadataHistoryRepository
 import com.observability.sfdc.repository.ReportRepository
-import com.observability.sfdc.service.MetadataService
+import com.observability.sfdc.service.ApexClassMetadataService
+import com.observability.sfdc.service.ApexTriggerMetadataService
+import com.observability.sfdc.service.DebugLevelMetadataService
+import com.observability.sfdc.service.MetadataDetailService
+import com.observability.sfdc.service.ReportMetadataService
 import com.observability.sfdc.util.ReportToSoqlConverter
 import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
@@ -37,7 +41,7 @@ class SalesforceMetadataService(
     private val reportToSoqlConverter: ReportToSoqlConverter,
     private val minioService: MinioService,
     @Value($$"${salesforce.api-version}") apiVersion: String
-    ) : SalesforceBaseService(authService, apiVersion), MetadataService {
+    ) : SalesforceBaseService(authService, apiVersion), ApexClassMetadataService, ApexTriggerMetadataService, DebugLevelMetadataService, ReportMetadataService, MetadataDetailService {
 
     private val salesforceIdPattern = Regex("^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
 

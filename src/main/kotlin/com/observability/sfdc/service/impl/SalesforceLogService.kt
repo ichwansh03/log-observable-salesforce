@@ -6,7 +6,8 @@ import com.observability.sfdc.exception.SalesforceApiException
 import com.observability.sfdc.exception.ValidationException
 import com.observability.sfdc.repository.DebugLevelRepository
 import com.observability.sfdc.repository.LogRepository
-import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.ApexLogService
+import com.observability.sfdc.service.TraceFlagService
 import com.observability.sfdc.service.SalesforceBaseService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.ParameterizedTypeReference
@@ -28,7 +29,7 @@ class SalesforceLogService(
     private val logRepository: LogRepository,
     private val minioService: MinioService,
     @Value($$"${salesforce.api-version}") apiVersion: String
-) : SalesforceBaseService(authService, apiVersion), LogService {
+) : SalesforceBaseService(authService, apiVersion), ApexLogService, TraceFlagService {
     private val salesforceIdRegex = Regex("^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
 
     init {

@@ -7,7 +7,8 @@ import com.observability.sfdc.dto.FrontendTraceFlagRequest
 import com.observability.sfdc.dto.SalesforceCreateResponse
 import com.observability.sfdc.dto.TraceFlagDto
 import com.observability.sfdc.repository.LogRepository
-import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.ApexLogService
+import com.observability.sfdc.service.TraceFlagService
 import com.observability.sfdc.service.impl.TraceJobService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -21,7 +22,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/sfdc/logs")
 @Tag(name = "Salesforce Logs", description = "Endpoints for managing and retrieving Salesforce debug logs")
 class SalesforceLogController(
-    private val logService: LogService,
+    private val apexLogService: ApexLogService,
+    private val traceFlagService: TraceFlagService,
     private val logRepository: LogRepository,
     private val traceJobService: TraceJobService
 ) {
@@ -33,7 +35,7 @@ class SalesforceLogController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ApexLogDto> {
         val offset = page * size
-        return logService.queryApexLogs(size, offset)
+        return apexLogService.queryApexLogs(size, offset)
     }
 
     @GetMapping("/db")
@@ -59,7 +61,7 @@ class SalesforceLogController(
     @GetMapping("/{id}/body")
     @Operation(summary = "Get Log Body", description = "Fetches the full text body of a specific Apex log, checking local storage first.")
     fun getLogBody(@PathVariable id: String): String {
-        return logService.getLogBody(id) ?: ""
+        return apexLogService.getLogBody(id) ?: ""
     }
 
     @GetMapping("/{id}/download")
@@ -68,7 +70,7 @@ class SalesforceLogController(
         @PathVariable id: String,
         @RequestParam(required = false) operation: String?
     ): ResponseEntity<org.springframework.core.io.Resource> {
-        val stream = logService.getLogDownloadStream(id)
+        val stream = apexLogService.getLogDownloadStream(id)
             ?: throw com.observability.sfdc.exception.ResourceNotFoundException("Log not available for download", "Log", id)
         val downloadName = "${operation ?: "log"}_$id.log.gz"
         val resource = org.springframework.core.io.InputStreamResource(stream)
@@ -81,7 +83,7 @@ class SalesforceLogController(
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete Log", description = "Deletes a specific Apex log from Salesforce and local storage.")
     fun deleteLog(@PathVariable id: String): ResponseEntity<Unit> {
-        logService.deleteLog(id)
+        apexLogService.deleteLog(id)
         return ResponseEntity.ok().build()
     }
 
@@ -89,10 +91,10 @@ class SalesforceLogController(
     @Operation(summary = "Bulk Delete Logs", description = "Deletes multiple logs by ID or deletes all logs if no IDs are provided.")
     fun deleteLogs(@RequestParam(required = false) ids: List<String>?): ResponseEntity<Map<String, Any>> {
         return if (ids.isNullOrEmpty()) {
-            val count = logService.deleteAllLogs()
+            val count = apexLogService.deleteAllLogs()
             ResponseEntity.ok(mapOf("message" to "Successfully deleted $count logs from Salesforce", "count" to count))
         } else {
-            val results = logService.deleteLogs(ids)
+            val results = apexLogService.deleteLogs(ids)
             ResponseEntity.ok(mapOf("results" to results))
         }
     }
@@ -100,25 +102,25 @@ class SalesforceLogController(
     @PostMapping("/trace-flags")
     @Operation(summary = "Create Trace Flag", description = "Creates a new TraceFlag in Salesforce for a target user or class.")
     fun createTraceFlag(@Valid @RequestBody request: FrontendTraceFlagRequest): SalesforceCreateResponse {
-        return logService.createTraceFlag(request) ?: SalesforceCreateResponse(id = null, success = false, errors = listOf("Failed to create TraceFlag"))
+        return traceFlagService.createTraceFlag(request) ?: SalesforceCreateResponse(id = null, success = false, errors = listOf("Failed to create TraceFlag"))
     }
 
     @GetMapping("/trace-flags")
     @Operation(summary = "Get Active Trace Flags", description = "Lists all currently active TraceFlags in the Salesforce organization.")
     fun getActiveTraceFlags(): List<TraceFlagDto> {
-        return logService.getActiveTraceFlags()
+        return traceFlagService.getActiveTraceFlags()
     }
 
     @GetMapping("/trace-flags/all")
     @Operation(summary = "Get All Trace Flags", description = "Lists all TraceFlags (active and expired) from the Salesforce organization.")
     fun getAllTraceFlags(): List<TraceFlagDto> {
-        return logService.getAllTraceFlags()
+        return traceFlagService.getAllTraceFlags()
     }
 
     @DeleteMapping("/trace-flags/{id}")
     @Operation(summary = "Delete Trace Flag", description = "Deletes a specific TraceFlag from Salesforce.")
     fun deleteTraceFlag(@PathVariable id: String): ResponseEntity<Unit> {
-        logService.deleteTraceFlag(id)
+        traceFlagService.deleteTraceFlag(id)
         return ResponseEntity.ok().build()
     }
 
