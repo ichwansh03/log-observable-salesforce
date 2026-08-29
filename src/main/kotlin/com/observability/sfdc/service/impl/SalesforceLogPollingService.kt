@@ -2,7 +2,7 @@ package com.observability.sfdc.service.impl
 
 import com.observability.sfdc.domain.Log
 import com.observability.sfdc.repository.LogRepository
-import com.observability.sfdc.service.LogService
+import com.observability.sfdc.service.ApexLogService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter
 
 @Service
 class SalesforceLogPollingService(
-    private val logService: LogService,
+    private val apexLogService: ApexLogService,
     private val logRepository: LogRepository
 ) {
     private val logger = LoggerFactory.getLogger(SalesforceLogPollingService::class.java)
@@ -25,15 +25,15 @@ class SalesforceLogPollingService(
         logger.info("Starting Salesforce log polling cycle...")
         try {
             // Fetch logs without bodies first to check against database
-            val logs = logService.queryApexLogs(limit = 20, fetchBody = false)
+            val logs = apexLogService.queryApexLogs(limit = 20, fetchBody = false)
             logger.info("Retrieved ${logs.size} log headers from Salesforce.")
             
             var newLogsCount = 0
             logs.forEach { dto ->
                 if (!logRepository.findBySfdcId(dto.id).isPresent) {
                     // Fetch body from MinIO/SF, extract className, store body in MinIO only
-                    val body = logService.getLogBody(dto.id)
-                    val apexClassName = dto.apexClassName ?: logService.extractClassName(body)
+                    val body = apexLogService.getLogBody(dto.id)
+                    val apexClassName = dto.apexClassName ?: apexLogService.extractClassName(body)
 
                     val log = Log(
                         sfdcId = dto.id,

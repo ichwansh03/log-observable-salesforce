@@ -11,7 +11,11 @@ import com.observability.sfdc.dto.ReportDescribeDto
 import com.observability.sfdc.dto.ReportDto
 import com.observability.sfdc.dto.ReportSoqlDto
 import com.observability.sfdc.service.impl.MetadataComparisonService
-import com.observability.sfdc.service.MetadataService
+import com.observability.sfdc.service.ApexClassMetadataService
+import com.observability.sfdc.service.ApexTriggerMetadataService
+import com.observability.sfdc.service.DebugLevelMetadataService
+import com.observability.sfdc.service.MetadataDetailService
+import com.observability.sfdc.service.ReportMetadataService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.*
@@ -20,7 +24,11 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/sfdc/metadata")
 @Tag(name = "Salesforce Metadata", description = "Endpoints for retrieving Salesforce metadata information (Classes, Triggers, Debug Levels)")
 class SalesforceMetadataController(
-    private val metadataService: MetadataService,
+    private val apexClassMetadataService: ApexClassMetadataService,
+    private val apexTriggerMetadataService: ApexTriggerMetadataService,
+    private val debugLevelMetadataService: DebugLevelMetadataService,
+    private val reportMetadataService: ReportMetadataService,
+    private val metadataDetailService: MetadataDetailService,
     private val comparisonService: MetadataComparisonService
 ) {
 
@@ -39,7 +47,7 @@ class SalesforceMetadataController(
         @PathVariable type: String,
         @PathVariable id: String
     ): MetadataDetailDto? {
-        return metadataService.getMetadataDetail(id, type)
+        return metadataDetailService.getMetadataDetail(id, type)
     }
 
     @GetMapping("/debug-levels")
@@ -49,7 +57,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<DebugLevelDto> {
         val offset = page * size
-        return metadataService.getAllDebugLevels(limit = size, offset = offset)
+        return debugLevelMetadataService.getAllDebugLevels(limit = size, offset = offset)
     }
 
     @GetMapping("/debug-levels/db")
@@ -60,7 +68,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<com.observability.sfdc.domain.DebugLevel> {
         val offset = page * size
-        return metadataService.searchDebugLevels(name, size, offset)
+        return debugLevelMetadataService.searchDebugLevels(name, size, offset)
     }
 
     @GetMapping("/classes")
@@ -70,7 +78,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ApexClassDto> {
         val offset = page * size
-        return metadataService.getAllApexClasses(limit = size, offset = offset)
+        return apexClassMetadataService.getAllApexClasses(limit = size, offset = offset)
     }
 
     @GetMapping("/classes/db")
@@ -81,7 +89,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ApexClass> {
         val offset = page * size
-        return metadataService.searchClasses(name, size, offset)
+        return apexClassMetadataService.searchClasses(name, size, offset)
     }
 
     @GetMapping("/triggers")
@@ -91,7 +99,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ApexTriggerDto> {
         val offset = page * size
-        return metadataService.getAllApexTriggers(limit = size, offset = offset)
+        return apexTriggerMetadataService.getAllApexTriggers(limit = size, offset = offset)
     }
 
     @GetMapping("/triggers/db")
@@ -102,7 +110,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ApexTrigger> {
         val offset = page * size
-        return metadataService.searchTriggers(name, size, offset)
+        return apexTriggerMetadataService.searchTriggers(name, size, offset)
     }
 
     @GetMapping("/reports")
@@ -112,7 +120,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<ReportDto> {
         val offset = page * size
-        return metadataService.getAllReports(limit = size, offset = offset)
+        return reportMetadataService.getAllReports(limit = size, offset = offset)
     }
 
     @GetMapping("/reports/db")
@@ -123,7 +131,7 @@ class SalesforceMetadataController(
         @RequestParam(defaultValue = "0") page: Int
     ): List<Report> {
         val offset = page * size
-        return metadataService.searchReports(name, size, offset)
+        return reportMetadataService.searchReports(name, size, offset)
     }
 
     @GetMapping("/reports/{id}/describe")
@@ -131,7 +139,7 @@ class SalesforceMetadataController(
     fun getReportDescribe(
         @PathVariable id: String
     ): ReportDescribeDto? {
-        return metadataService.getReportDescribe(id)
+        return reportMetadataService.getReportDescribe(id)
     }
 
     @GetMapping("/reports/{id}/soql")
@@ -139,6 +147,6 @@ class SalesforceMetadataController(
     fun convertReportToSoql(
         @PathVariable id: String
     ): ReportSoqlDto? {
-        return metadataService.convertReportToSoql(id)
+        return reportMetadataService.convertReportToSoql(id)
     }
 }
