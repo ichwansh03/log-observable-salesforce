@@ -117,6 +117,76 @@ class MinioService(
         }
     }
 
+    // --- Metadata body methods ---
+
+    fun uploadMetadataBody(entityType: String, sfdcId: String, body: String) {
+        try {
+            val compressedData = compress(body)
+            val inputStream = ByteArrayInputStream(compressedData)
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .`object`("metadata/$entityType/$sfdcId/current.gz")
+                    .stream(inputStream, compressedData.size.toLong(), -1)
+                    .contentType("application/gzip")
+                    .build()
+            )
+            logger.info("Uploaded metadata body $entityType/$sfdcId to MinIO")
+        } catch (e: Exception) {
+            logger.error("Failed to upload metadata body $entityType/$sfdcId to MinIO: ${e.message}")
+        }
+    }
+
+    fun uploadMetadataHistoryBody(entityType: String, sfdcId: String, historyId: Long, body: String) {
+        try {
+            val compressedData = compress(body)
+            val inputStream = ByteArrayInputStream(compressedData)
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .`object`("metadata/$entityType/$sfdcId/$historyId.gz")
+                    .stream(inputStream, compressedData.size.toLong(), -1)
+                    .contentType("application/gzip")
+                    .build()
+            )
+            logger.info("Uploaded metadata history body $entityType/$sfdcId/$historyId to MinIO")
+        } catch (e: Exception) {
+            logger.error("Failed to upload metadata history body $entityType/$sfdcId/$historyId to MinIO: ${e.message}")
+        }
+    }
+
+    fun downloadMetadataBody(entityType: String, sfdcId: String): String? {
+        return try {
+            val stream = minioClient.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .`object`("metadata/$entityType/$sfdcId/current.gz")
+                    .build()
+            )
+            val compressedData = stream.use { it.readAllBytes() }
+            decompress(compressedData)
+        } catch (e: Exception) {
+            logger.debug("Metadata body $entityType/$sfdcId not found in MinIO: ${e.message}")
+            null
+        }
+    }
+
+    fun downloadMetadataHistoryBody(entityType: String, sfdcId: String, historyId: Long): String? {
+        return try {
+            val stream = minioClient.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .`object`("metadata/$entityType/$sfdcId/$historyId.gz")
+                    .build()
+            )
+            val compressedData = stream.use { it.readAllBytes() }
+            decompress(compressedData)
+        } catch (e: Exception) {
+            logger.debug("Metadata history body $entityType/$sfdcId/$historyId not found in MinIO: ${e.message}")
+            null
+        }
+    }
+
     private fun compress(data: String): ByteArray {
         val bos = ByteArrayOutputStream()
         GZIPOutputStream(bos).use { it.write(data.toByteArray()) }

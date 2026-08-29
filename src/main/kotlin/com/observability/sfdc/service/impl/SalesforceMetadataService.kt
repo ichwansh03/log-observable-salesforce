@@ -35,6 +35,7 @@ class SalesforceMetadataService(
     private val metadataHistoryRepository: MetadataHistoryRepository,
     private val reportRepository: ReportRepository,
     private val reportToSoqlConverter: ReportToSoqlConverter,
+    private val minioService: MinioService,
     @Value($$"${salesforce.api-version}") apiVersion: String
     ) : SalesforceBaseService(authService, apiVersion), MetadataService {
 
@@ -221,19 +222,29 @@ class SalesforceMetadataService(
     }
 
     override fun syncClassesToDatabase(dtos: List<ApexClassDto>) = dtos.distinctBy { it.id }.forEach { dto ->
-        val entity = classRepository.findBySfdcId(dto.id).orElse(ApexClass(sfdcId = dto.id, name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
-        if (entity.body != null && entity.body != dto.body) {
-            metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexClass", body = entity.body))
+        val entity = classRepository.findBySfdcId(dto.id).orElse(ApexClass(sfdcId = dto.id, name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered))
+        if (dto.body != null) {
+            val oldBody = minioService.downloadMetadataBody("ApexClass", dto.id)
+            if (oldBody != null && oldBody != dto.body) {
+                val history = metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexClass"))
+                minioService.uploadMetadataHistoryBody("ApexClass", dto.id, history.id!!, oldBody)
+            }
+            minioService.uploadMetadataBody("ApexClass", dto.id, dto.body)
         }
-        classRepository.save(entity.copy(name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
+        classRepository.save(entity.copy(name = dto.name, apiVersion = dto.apiVersion, status = dto.status, lengthWithoutComments = dto.lengthWithoutComments, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered))
     }
 
     override fun syncTriggersToDatabase(dtos: List<ApexTriggerDto>) = dtos.distinctBy { it.id }.forEach { dto ->
-        val entity = triggerRepository.findBySfdcId(dto.id).orElse(ApexTrigger(sfdcId = dto.id, name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
-        if (entity.body != null && entity.body != dto.body) {
-            metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexTrigger", body = entity.body))
+        val entity = triggerRepository.findBySfdcId(dto.id).orElse(ApexTrigger(sfdcId = dto.id, name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered))
+        if (dto.body != null) {
+            val oldBody = minioService.downloadMetadataBody("ApexTrigger", dto.id)
+            if (oldBody != null && oldBody != dto.body) {
+                val history = metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexTrigger"))
+                minioService.uploadMetadataHistoryBody("ApexTrigger", dto.id, history.id!!, oldBody)
+            }
+            minioService.uploadMetadataBody("ApexTrigger", dto.id, dto.body)
         }
-        triggerRepository.save(entity.copy(name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered, body = dto.body))
+        triggerRepository.save(entity.copy(name = dto.name, sobject = dto.tableEnumOrId, apiVersion = dto.apiVersion, status = dto.status, usageBeforeInsert = dto.usageBeforeInsert, usageBeforeUpdate = dto.usageBeforeUpdate, usageBeforeDelete = dto.usageBeforeDelete, usageAfterInsert = dto.usageAfterInsert, usageAfterUpdate = dto.usageAfterUpdate, usageAfterDelete = dto.usageAfterDelete, usageAfterUndelete = dto.usageAfterUndelete, lastModifiedDate = dto.lastModifiedDate, lastModifiedByName = dto.lastModifiedBy?.name, createdDate = dto.createdDate, createdByName = dto.createdBy?.name, numLinesCovered = dto.coverage?.numLinesCovered, numLinesUncovered = dto.coverage?.numLinesUncovered))
     }
 
     override fun syncReportsToDatabase(dtos: List<ReportDto>) = dtos.distinctBy { it.id }.forEach { dto ->

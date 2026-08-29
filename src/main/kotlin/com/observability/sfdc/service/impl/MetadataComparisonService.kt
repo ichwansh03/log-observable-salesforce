@@ -11,7 +11,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class MetadataComparisonService(
     private val metadataService: MetadataService,
-    private val historyRepository: MetadataHistoryRepository
+    private val historyRepository: MetadataHistoryRepository,
+    private val minioService: MinioService
 ) {
 
     @Transactional
@@ -22,15 +23,13 @@ class MetadataComparisonService(
         val latestBody = detail.body ?: throw ResourceNotFoundException("Entity has no body", "MetadataBody", entityId)
 
         val previousHistory = historyRepository.findTopBySfdcIdAndEntityTypeOrderByCreatedAtDesc(entityId, type)
-        val previousBody = previousHistory?.body ?: ""
+        val previousBody = if (previousHistory != null) {
+            minioService.downloadMetadataHistoryBody(type, entityId, previousHistory.id!!) ?: ""
+        } else ""
 
-        historyRepository.save(MetadataHistory(sfdcId = entityId, entityType = type, body = latestBody))
+        val history = historyRepository.save(MetadataHistory(sfdcId = entityId, entityType = type))
+        minioService.uploadMetadataHistoryBody(type, entityId, history.id!!, latestBody)
 
         return MetadataDiffDto(previousBody = previousBody, latestBody = latestBody)
-    }
-
-    @Transactional
-    fun saveHistory(entityId: String, type: String, body: String) {
-        historyRepository.save(MetadataHistory(sfdcId = entityId, entityType = type, body = body))
     }
 }
