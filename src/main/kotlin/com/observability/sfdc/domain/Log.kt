@@ -7,8 +7,7 @@ import java.time.Instant
 @Table(name = "logs", indexes = [
     Index(name = "idx_logs_apex_class_name", columnList = "apex_class_name"),
     Index(name = "idx_logs_author_name", columnList = "author_name"),
-    Index(name = "idx_logs_request_time", columnList = "request_time"),
-    Index(name = "idx_logs_sfdc_id", columnList = "sfdc_id")
+    Index(name = "idx_logs_request_time", columnList = "request_time")
 ])
 data class Log(
     @Id
