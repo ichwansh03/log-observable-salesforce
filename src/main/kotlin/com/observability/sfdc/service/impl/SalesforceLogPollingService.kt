@@ -31,7 +31,7 @@ class SalesforceLogPollingService(
             var newLogsCount = 0
             logs.forEach { dto ->
                 if (!logRepository.findBySfdcId(dto.id).isPresent) {
-                    // Fetch body only for new logs (this triggers MinIO upload)
+                    // Fetch body from MinIO/SF, extract className, store body in MinIO only
                     val body = logService.getLogBody(dto.id)
                     val apexClassName = dto.apexClassName ?: logService.extractClassName(body)
 
@@ -44,8 +44,7 @@ class SalesforceLogPollingService(
                         logSize = dto.logLength,
                         duration = dto.durationMilliseconds,
                         status = dto.status,
-                        request = dto.request,
-                        body = body
+                        request = dto.request
                     )
                     logRepository.save(log)
                     newLogsCount++

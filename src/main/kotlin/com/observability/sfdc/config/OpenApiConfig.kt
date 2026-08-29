@@ -15,7 +15,7 @@ class OpenApiConfig {
             .info(
                 Info()
                     .title("Apexium Log API")
-                    .version("v1")
+                    .version("v1.2")
                     .description("A real-time observability platform built with Kotlin and Spring Boot to centralize, monitor, and analyze Salesforce debug logs and system events.")
                     .license(
                         License()

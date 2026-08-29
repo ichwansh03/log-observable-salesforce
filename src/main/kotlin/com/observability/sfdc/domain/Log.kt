@@ -40,8 +40,5 @@ data class Log(
     val status: String? = null,
 
     @Column(name = "request")
-    val request: String? = null,
-
-    @Column(name = "body", columnDefinition = "TEXT")
-    val body: String? = null
+    val request: String? = null
 )

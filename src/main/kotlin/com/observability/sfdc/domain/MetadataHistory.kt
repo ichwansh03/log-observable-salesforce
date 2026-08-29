@@ -17,7 +17,7 @@ data class MetadataHistory(
     val entityType: String, // ApexClass or ApexTrigger
 
     @Column(columnDefinition = "TEXT")
-    val body: String?,
+    val body: String? = null,
 
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now()
