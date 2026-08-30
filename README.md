@@ -7,7 +7,7 @@ a Salesforce developer productivity tool designed to simplify Debug Log manageme
 * 🚀 **Centralized Debug Log Management** to manage, search, download, and delete Salesforce Debug Logs from a single interface, making debugging more efficient.
 * ⏰ **Automated Recurring Trace Flags** to automatically extend user trace sessions beyond Salesforce's 24-hour Trace Flag limitation.
 * 📊 **Apex Code Coverage Reports** to view code coverage for all Apex Classes and Triggers in a centralized dashboard, helping ensure deployment readiness.
-* 🔍 **Metadata Change Tracking** to detect and compare changes in Apex Classes and Triggers through metadata body comparison, making code changes easier to review.
+* 🔍 **Metadata Change Tracking** to detect changes in Apex Classes and Triggers through scheduled polling, with a timeline view and body diff comparison via MinIO-stored snapshots. History records include who made the change and when.
 * ♻️ **Reusable Debug Sessions** to quickly reuse previously configured Trace Flags and debugging settings without repeating manual configuration.
 * 🗃️ **Extended Debug Log Retention** to retain Debug Logs for up to 30 days, even after they have expired or been removed from Salesforce.
 * ⚡ **Faster Root Cause Analysis** by combining Debug Log history, metadata changes, and trace information in a single application for quicker issue investigation.
@@ -59,8 +59,8 @@ graph TD
 
 1.  **Salesforce (Source)**: Source of ApexLogs, ApexClass, ApexTrigger, TraceFlag, and DebugLevel metadata. Accessed via REST and Tooling APIs.
 2.  **Kotlin Backend (Spring Boot)**: Polls Salesforce periodically for new logs and metadata changes. Stores processed data in PostgreSQL and MinIO. Exposes REST APIs for the frontend.
-3.  **PostgreSQL**: Stores log metadata, Apex class/trigger info, code coverage, metadata history (for diff comparison), trace jobs, and debug levels.
-4.  **MinIO**: Stores full debug log body files for long-term retention beyond Salesforce's 24-hour window.
+3.  **PostgreSQL**: Stores log metadata, Apex class/trigger info, code coverage, metadata history timeline (who changed, when), trace jobs, and debug levels.
+4.  **MinIO**: Stores full debug log body files and Apex class/trigger body snapshots (current + historical) for long-term retention and diff comparison.
 5.  **Redis**: Caching layer for Salesforce access tokens and metadata queries.
 6.  **React Frontend**: TypeScript-based dashboard for viewing logs, managing traces, comparing metadata, and monitoring coverage.
 
