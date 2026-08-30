@@ -7,14 +7,16 @@ import com.observability.sfdc.dto.ApexClassDto
 import com.observability.sfdc.dto.ApexTriggerDto
 import com.observability.sfdc.dto.DebugLevelDto
 import com.observability.sfdc.dto.MetadataDetailDto
+import com.observability.sfdc.dto.MetadataDiffDto
+import com.observability.sfdc.dto.MetadataHistoryDto
 import com.observability.sfdc.dto.ReportDescribeDto
 import com.observability.sfdc.dto.ReportDto
 import com.observability.sfdc.dto.ReportSoqlDto
-import com.observability.sfdc.service.impl.MetadataComparisonService
 import com.observability.sfdc.service.ApexClassMetadataService
 import com.observability.sfdc.service.ApexTriggerMetadataService
 import com.observability.sfdc.service.DebugLevelMetadataService
 import com.observability.sfdc.service.MetadataDetailService
+import com.observability.sfdc.service.MetadataHistoryService
 import com.observability.sfdc.service.ReportMetadataService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -29,17 +31,8 @@ class SalesforceMetadataController(
     private val debugLevelMetadataService: DebugLevelMetadataService,
     private val reportMetadataService: ReportMetadataService,
     private val metadataDetailService: MetadataDetailService,
-    private val comparisonService: MetadataComparisonService
+    private val metadataHistoryService: MetadataHistoryService
 ) {
-
-    @GetMapping("/compare/{type}/{id}")
-    @Operation(summary = "Compare Metadata", description = "Compares the current Apex class/trigger body with the previous version.")
-    fun compareMetadata(
-        @PathVariable type: String,
-        @PathVariable id: String
-    ): com.observability.sfdc.dto.MetadataDiffDto {
-        return comparisonService.compareMetadata(id, type)
-    }
 
     @GetMapping("/details/{type}/{id}")
     @Operation(summary = "Get Metadata Details", description = "Retrieves deep details for a specific Apex class or trigger, including coverage and related test classes.")
@@ -48,6 +41,26 @@ class SalesforceMetadataController(
         @PathVariable id: String
     ): MetadataDetailDto? {
         return metadataDetailService.getMetadataDetail(id, type)
+    }
+
+    @GetMapping("/history/{type}/{id}")
+    @Operation(summary = "Get Metadata History", description = "Returns the change history timeline for a specific Apex class or trigger, ordered newest first.")
+    fun getMetadataHistory(
+        @PathVariable type: String,
+        @PathVariable id: String
+    ): List<MetadataHistoryDto> {
+        return metadataHistoryService.getHistory(type, id)
+    }
+
+    @GetMapping("/history/{type}/{id}/diff")
+    @Operation(summary = "Get Metadata Diff", description = "Returns a diff between the current body and a specific historical snapshot.")
+    fun getMetadataDiff(
+        @PathVariable type: String,
+        @PathVariable id: String,
+        @RequestParam historyId: Long
+    ): MetadataDiffDto {
+        return metadataHistoryService.getDiff(type, id, historyId)
+            ?: throw com.observability.sfdc.exception.ResourceNotFoundException("Diff not available", "MetadataDiff", "$type/$id")
     }
 
     @GetMapping("/debug-levels")

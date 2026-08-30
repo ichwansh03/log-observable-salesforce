@@ -29,6 +29,9 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 @Service
 class SalesforceMetadataService(
@@ -44,6 +47,47 @@ class SalesforceMetadataService(
     ) : SalesforceBaseService(authService, apiVersion), ApexClassMetadataService, ApexTriggerMetadataService, DebugLevelMetadataService, ReportMetadataService, MetadataDetailService {
 
     private val salesforceIdPattern = Regex("^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$")
+    private val sfdcDateFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+
+    private fun parseSfdcDate(dateStr: String?): Instant? {
+        if (dateStr.isNullOrBlank()) return null
+        return try {
+            OffsetDateTime.parse(dateStr, sfdcDateFormatter).toInstant()
+        } catch (e: Exception) {
+            logger.warn("Failed to parse Salesforce date: $dateStr")
+            null
+        }
+    }
+
+    private fun buildClassWhereClause(): String {
+        return "WHERE Status = 'Active' " +
+            "AND (NOT Name LIKE '%Test') AND (NOT Name LIKE 'Test%') " +
+            "AND (NOT Name LIKE '%Tests') AND (NOT Name LIKE '%Mock') AND (NOT Name LIKE '%Factory') "
+    }
+
+    private fun buildTriggerWhereClause(): String {
+        return "WHERE Status = 'Active' "
+    }
+
+    override fun countApexClassesFromSalesforce(): Int {
+        val query = "SELECT COUNT() FROM ApexClass ${buildClassWhereClause()}"
+        return executeWithToken("counting ApexClasses", 0) { token, instanceUrl ->
+            val uri = buildUri(instanceUrl, "query").queryParam("q", query).build().toUri()
+            val entity = HttpEntity<Unit>(createHeaders(token))
+            val response = restTemplate.exchange(uri, HttpMethod.GET, entity, object : ParameterizedTypeReference<SalesforceQueryResult<Map<String, Any>>>() {})
+            response.body?.totalSize ?: 0
+        }
+    }
+
+    override fun countApexTriggersFromSalesforce(): Int {
+        val query = "SELECT COUNT() FROM ApexTrigger ${buildTriggerWhereClause()}"
+        return executeWithToken("counting ApexTriggers", 0) { token, instanceUrl ->
+            val uri = buildUri(instanceUrl, "query").queryParam("q", query).build().toUri()
+            val entity = HttpEntity<Unit>(createHeaders(token))
+            val response = restTemplate.exchange(uri, HttpMethod.GET, entity, object : ParameterizedTypeReference<SalesforceQueryResult<Map<String, Any>>>() {})
+            response.body?.totalSize ?: 0
+        }
+    }
 
     @Cacheable(value = ["sf_metadata"], key = "'debug_levels_' + (#name ?: 'all') + '_' + #limit + '_' + #offset", unless = "#result == null")
     @Transactional
@@ -61,13 +105,12 @@ class SalesforceMetadataService(
     }
 
     override fun fetchApexClassesFromSalesforce(name: String?, limit: Int, offset: Int): List<ApexClassDto> {
-        var query = "SELECT Id, Name, ApiVersion, Status, LengthWithoutComments, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexClass WHERE Status = 'Active' "
+        var query = "SELECT Id, Name, ApiVersion, Status, LengthWithoutComments, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexClass ${buildClassWhereClause()}"
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
             query += "AND Name LIKE '%$escapedName%' "
         }
         
-        query += "AND (NOT Name LIKE '%Test') AND (NOT Name LIKE 'Test%') AND (NOT Name LIKE '%Tests') AND (NOT Name LIKE '%Mock') AND (NOT Name LIKE '%Factory') "
         query += "ORDER BY Name ASC LIMIT $limit OFFSET $offset"
         
         val records = querySalesforce("querying ApexClasses", query, object : ParameterizedTypeReference<SalesforceQueryResult<ApexClassDto>>() {})
@@ -79,7 +122,7 @@ class SalesforceMetadataService(
     }
 
     override fun fetchApexTriggersFromSalesforce(name: String?, limit: Int, offset: Int): List<ApexTriggerDto> {
-        var query = "SELECT Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexTrigger WHERE Status = 'Active' "
+        var query = "SELECT Id, Name, TableEnumOrId, ApiVersion, Status, UsageBeforeInsert, UsageBeforeUpdate, UsageBeforeDelete, UsageAfterInsert, UsageAfterUpdate, UsageAfterDelete, UsageAfterUndelete, LastModifiedDate, LastModifiedBy.Name, CreatedDate, CreatedBy.Name, Body FROM ApexTrigger ${buildTriggerWhereClause()}"
         if (!name.isNullOrBlank()) {
             val escapedName = name.replace("'", "\\'")
             query += "AND Name LIKE '%$escapedName%' "
@@ -230,7 +273,12 @@ class SalesforceMetadataService(
         if (dto.body != null) {
             val oldBody = minioService.downloadMetadataBody("ApexClass", dto.id)
             if (oldBody != null && oldBody != dto.body) {
-                val history = metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexClass"))
+                val history = metadataHistoryRepository.save(MetadataHistory(
+                    sfdcId = dto.id,
+                    entityType = "ApexClass",
+                    changedAt = parseSfdcDate(dto.lastModifiedDate),
+                    changedByName = dto.lastModifiedBy?.name
+                ))
                 minioService.uploadMetadataHistoryBody("ApexClass", dto.id, history.id!!, oldBody)
             }
             minioService.uploadMetadataBody("ApexClass", dto.id, dto.body)
@@ -243,7 +291,12 @@ class SalesforceMetadataService(
         if (dto.body != null) {
             val oldBody = minioService.downloadMetadataBody("ApexTrigger", dto.id)
             if (oldBody != null && oldBody != dto.body) {
-                val history = metadataHistoryRepository.save(MetadataHistory(sfdcId = dto.id, entityType = "ApexTrigger"))
+                val history = metadataHistoryRepository.save(MetadataHistory(
+                    sfdcId = dto.id,
+                    entityType = "ApexTrigger",
+                    changedAt = parseSfdcDate(dto.lastModifiedDate),
+                    changedByName = dto.lastModifiedBy?.name
+                ))
                 minioService.uploadMetadataHistoryBody("ApexTrigger", dto.id, history.id!!, oldBody)
             }
             minioService.uploadMetadataBody("ApexTrigger", dto.id, dto.body)
