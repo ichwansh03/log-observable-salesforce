@@ -11,11 +11,11 @@ import java.time.Instant
 @Service
 class LogRetentionService(
     private val logRepository: LogRepository,
-    @Value($$"${log.retention.days:30}") private val retentionDays: Long
+    @Value($$"${log.retention.days}") private val retentionDays: Long
 ) {
     private val logger = LoggerFactory.getLogger(LogRetentionService::class.java)
 
-    @Scheduled(cron = "\${log.retention.cron:0 0 3 * * ?}")
+    @Scheduled(cron = $$"${log.retention.cron}")
     @Transactional
     fun purgeOldLogs() {
         val cutoff = Instant.now().minusSeconds(retentionDays * 86400)

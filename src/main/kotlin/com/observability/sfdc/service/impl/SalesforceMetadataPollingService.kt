@@ -1,10 +1,9 @@
 package com.observability.sfdc.service.impl
 
-import com.observability.sfdc.repository.ApexClassRepository
-import com.observability.sfdc.repository.ApexTriggerRepository
 import com.observability.sfdc.service.ApexClassMetadataService
 import com.observability.sfdc.service.ApexTriggerMetadataService
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,13 +11,11 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class SalesforceMetadataPollingService(
     private val apexClassMetadataService: ApexClassMetadataService,
-    private val apexTriggerMetadataService: ApexTriggerMetadataService,
-    private val classRepository: ApexClassRepository,
-    private val triggerRepository: ApexTriggerRepository
+    private val apexTriggerMetadataService: ApexTriggerMetadataService
 ) {
     private val logger = LoggerFactory.getLogger(SalesforceMetadataPollingService::class.java)
 
-    @Scheduled(fixedRate = 3600000) // Poll every hour
+    @Scheduled(fixedRateString = $$"${metadata.poll.rate}")
     @Transactional
     fun pollMetadata() {
         logger.info("Starting Salesforce metadata polling cycle...")
