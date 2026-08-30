@@ -19,7 +19,7 @@ class SalesforceLogPollingService(
     private val logger = LoggerFactory.getLogger(SalesforceLogPollingService::class.java)
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
 
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRateString = $$"${log.poll.rate}")
     @Transactional
     fun pollLogs() {
         logger.info("Starting Salesforce log polling cycle...")
