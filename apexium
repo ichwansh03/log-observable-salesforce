@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+#
+# apexium — CLI wrapper for the apexium-log project.
+#
+# Usage:
+#   apexium start     Start the stack (runs wizard first if .env is missing)
+#   apexium init       Force re-run the setup wizard, overwriting .env
+#   apexium stop        Stop the stack
+#   apexium restart      Stop then start the stack
+#   apexium logs          Tail backend logs
+#   apexium status          Check backend health
+
+set -euo pipefail
+
+ENV_FILE=".env"
+HEALTH_URL="http://localhost:8080/actuator/health"
+HEALTH_TIMEOUT_SECS=90
+
+info()  { printf '  %s\n' "$1"; }
+ok()    { printf '  [ok] %s\n' "$1"; }
+warn()  { printf '  [!]  %s\n' "$1"; }
+fail()  { printf '  [x]  %s\n' "$1" >&2; exit 1; }
+step()  { printf '\n== %s ==\n' "$1"; }
+
+# ---------- prerequisite check ----------
+
+check_prerequisites() {
+  step "Checking prerequisites"
+
+  command -v docker >/dev/null 2>&1 \
+    || fail "Docker is not found. Install: https://docs.docker.com/get-docker/"
+  ok "Docker detected ($(docker --version))"
+
+  docker compose version >/dev/null 2>&1 \
+    || fail "Docker Compose v2 plugin not found (command 'docker compose' has failed)."
+  ok "Docker Compose detected"
+
+  if command -v java >/dev/null 2>&1; then
+    JAVA_VERSION="$(java -version 2>&1 | awk -F'"' '/version/ {print $2}' | cut -d'.' -f1)"
+    if [[ "$JAVA_VERSION" =~ ^[0-9]+$ ]] && [ "$JAVA_VERSION" -ge 21 ]; then
+      ok "Java $JAVA_VERSION detected"
+    else
+      warn "Java Detected, but the version cannot be confirmed >=21."
+    fi
+  else
+    warn "Java has not found — ./mvnw spring-boot:run will be not run."
+  fi
+}
+
+# ---------- env helpers ----------
+
+# Ensure a KEY=value line exists in $ENV_FILE. If the key is already
+# defined (regardless of its current value), leave it untouched.
+set_env_default() {
+  local key="$1"
+  local default_value="$2"
+
+  touch "$ENV_FILE"
+
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    return
+  fi
+
+  echo "${key}=${default_value}" >> "$ENV_FILE"
+}
+
+# ---------- wizard: salesforce credentials (interactive) ----------
+
+prompt_salesforce_credentials() {
+  step "Salesforce Configurations"
+  info "Get Consumer Key & Secret from Connected App (Client Credentials Flow)."
+  echo
+  read -rp "  Salesforce Instance URL: " SF_INSTANCE_URL
+  [[ "$SF_INSTANCE_URL" =~ ^https:// ]] || fail "Instance URL must be https://"
+  read -rp "  Consumer Key (Client ID): " SF_CLIENT_ID
+  [ -n "$SF_CLIENT_ID" ] || fail "Client ID cannot null"
+  read -rsp "  Consumer Secret: " SF_CLIENT_SECRET
+  echo
+  [ -n "$SF_CLIENT_SECRET" ] || fail "Client Secret cannot null"
+  read -rp "  API Version [v61.0]: " SF_API_VERSION
+  SF_API_VERSION="${SF_API_VERSION:-v61.0}"
+  SF_GRANT_TYPE="client_credentials"
+  ok "Salesforce credentials accepted"
+}
+
+write_salesforce_env() {
+  step "Write Salesforce config to $ENV_FILE"
+  touch "$ENV_FILE"
+
+  # Salesforce values are always overwritten on init/first-run — unlike
+  # infra defaults below, these come from an explicit prompt each time,
+  # so stale grep-based skipping would just keep old credentials around.
+  local tmp_file
+  tmp_file="$(mktemp)"
+  grep -v -E '^SALESFORCE_' "$ENV_FILE" > "$tmp_file" 2>/dev/null || true
+  {
+    cat "$tmp_file"
+    echo "SALESFORCE_INSTANCE_ORG=$SF_INSTANCE_URL"
+    echo "SALESFORCE_CLIENT_ID=$SF_CLIENT_ID"
+    echo "SALESFORCE_CLIENT_SECRET=$SF_CLIENT_SECRET"
+    echo "SALESFORCE_GRANT_TYPE=$SF_GRANT_TYPE"
+    echo "SALESFORCE_API_VERSION=$SF_API_VERSION"
+  } > "$ENV_FILE"
+  rm -f "$tmp_file"
+
+  chmod 600 "$ENV_FILE"
+  ok "Salesforce config written to $ENV_FILE (permission 600)"
+}
+
+# ---------- infra defaults (non-interactive, fill-if-missing) ----------
+
+ensure_infra_defaults() {
+  step "Ensuring infra defaults in $ENV_FILE"
+
+  set_env_default "DB_PORT" "5432"
+  set_env_default "DB_NAME" "sfdc_logs"
+  set_env_default "DB_USER" "postgres"
+  set_env_default "DB_PASSWORD" "postgres"
+
+  set_env_default "REDIS_PORT" "6379"
+
+  set_env_default "MINIO_ROOT_USER" "minioadmin"
+  set_env_default "MINIO_ROOT_PASSWORD" "minioadmin"
+  set_env_default "MINIO_URL" "http://localhost:9000"
+  set_env_default "MINIO_ACCESS_KEY" "minioadmin"
+  set_env_default "MINIO_SECRET_KEY" "minioadmin"
+  set_env_default "MINIO_BUCKET_NAME" "sfdc-bucket"
+
+  set_env_default "PGADMIN_EMAIL" "admin@admin.com"
+  set_env_default "PGADMIN_PASSWORD" "admin"
+
+  chmod 600 "$ENV_FILE"
+  ok "Infra defaults ensured (existing values in .env were not overwritten)"
+
+  if [ -f .gitignore ] && ! grep -qxF ".env" .gitignore; then
+    echo ".env" >> .gitignore
+    ok "adding .env to .gitignore"
+  fi
+}
+
+run_wizard() {
+  check_prerequisites
+  prompt_salesforce_credentials
+  write_salesforce_env
+  ensure_infra_defaults
+}
+
+# ---------- stack control ----------
+
+wait_healthy() {
+  info "Waiting health check for backend $HEALTH_URL ..."
+  local elapsed=0 interval=3
+  until curl -sf "$HEALTH_URL" 2>/dev/null | grep -q '"status":"UP"'; do
+    if [ "$elapsed" -ge "$HEALTH_TIMEOUT_SECS" ]; then
+      warn "Backend not UP after ${HEALTH_TIMEOUT_SECS}s. Check: apexium logs"
+      return
+    fi
+    sleep "$interval"; elapsed=$((elapsed + interval)); printf '.'
+  done
+  echo
+  ok "Backend UP"
+}
+
+print_summary() {
+  step "Ready"
+  cat <<EOF
+  Swagger UI:       http://localhost:8080/swagger-ui.html
+  Actuator health:  http://localhost:8080/actuator/health
+  pgAdmin:          http://localhost:5050
+  MinIO console:    http://localhost:9001
+
+  Frontend:  cd frontend && npm install && npm run dev
+EOF
+}
+
+cmd_start() {
+  if [ ! -f "$ENV_FILE" ]; then
+    info "$ENV_FILE has not found."
+    run_wizard
+  else
+    check_prerequisites
+    ensure_infra_defaults
+    ok "$ENV_FILE found, next to start stack (use 'apexium init' to re-configure Salesforce)"
+  fi
+  step "Running stack"
+  docker compose up -d --build
+  wait_healthy
+  print_summary
+}
+
+cmd_init() {
+  if [ -f "$ENV_FILE" ]; then
+    read -rp "  $ENV_FILE was exist. Replace Salesforce credentials? [y/N]: " OVERWRITE
+    case "$OVERWRITE" in y|Y) ;; *) fail "Canceled." ;; esac
+  fi
+  run_wizard
+  step "Running stack"
+  docker compose up -d --build
+  wait_healthy
+  print_summary
+}
+
+cmd_stop() {
+  step "Stopped stack"
+  docker compose down
+  ok "Stack has stopped"
+}
+
+cmd_restart() {
+  cmd_stop
+  cmd_start
+}
+
+cmd_logs() {
+  docker compose logs -f app
+}
+
+cmd_status() {
+  step "Status"
+  if curl -sf "$HEALTH_URL" 2>/dev/null | grep -q '"status":"UP"'; then
+    ok "Backend UP ($HEALTH_URL)"
+  else
+    warn "Backend not responsive in $HEALTH_URL"
+  fi
+  docker compose ps
+}
+
+print_help() {
+  cat <<EOF
+apexium — CLI fo apexium-log
+
+Usage: apexium <command>
+
+Commands:
+  start      Start the stack (run the wizard first if the .env file does not exist yet)
+  init       Force setup wizard, overwrite Salesforce credentials in .env
+  stop       Stop stack
+  restart    Stop then start stack again
+  logs       Tail log backend
+  status     Check health backend + status container
+EOF
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    start)   cmd_start ;;
+    init)    cmd_init ;;
+    stop)    cmd_stop ;;
+    restart) cmd_restart ;;
+    logs)    cmd_logs ;;
+    status)  cmd_status ;;
+    ""|help|-h|--help) print_help ;;
+    *) fail "Command unknown: $cmd (run 'apexium help')" ;;
+  esac
+}
+
+main "$@"

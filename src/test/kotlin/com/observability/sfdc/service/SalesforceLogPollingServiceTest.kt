@@ -11,7 +11,7 @@ import java.util.*
 
 class SalesforceLogPollingServiceTest {
 
-    private val logService = mock(LogService::class.java)
+    private val logService = mock(ApexLogService::class.java)
     private val logRepository = mock(LogRepository::class.java)
     private val pollingService = SalesforceLogPollingService(logService, logRepository)
 
