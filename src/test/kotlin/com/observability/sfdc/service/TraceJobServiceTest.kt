@@ -12,7 +12,7 @@ import org.mockito.Mockito.*
 class TraceJobServiceTest {
 
     private val traceJobRepository = mock(TraceJobRepository::class.java)
-    private val logService = mock(LogService::class.java)
+    private val logService = mock(TraceFlagService::class.java)
     private val traceJobService = TraceJobService(traceJobRepository, logService)
 
     @Test
