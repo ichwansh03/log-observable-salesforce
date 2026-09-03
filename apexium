@@ -129,6 +129,26 @@ ensure_infra_defaults() {
   set_env_default "PGADMIN_EMAIL" "admin@admin.com"
   set_env_default "PGADMIN_PASSWORD" "admin"
 
+  # Generate API key if missing (never use a static default)
+  if ! grep -q "^APEXIUM_API_KEY=" "$ENV_FILE"; then
+    if command -v openssl >/dev/null 2>&1; then
+      GENERATED_KEY="$(openssl rand -hex 32)"
+    elif command -v python3 >/dev/null 2>&1; then
+      GENERATED_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+    elif command -v head >/dev/null 2>&1 && [ -r /dev/urandom ]; then
+      GENERATED_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 64)"
+    else
+      fail "Cannot generate APEXIUM_API_KEY: no openssl, python3, or /dev/urandom available"
+    fi
+    echo "APEXIUM_API_KEY=${GENERATED_KEY}" >> "$ENV_FILE"
+    echo
+    warn "Generated new APEXIUM_API_KEY (shown once, saved to $ENV_FILE):"
+    warn "  ${GENERATED_KEY}"
+    echo
+    warn "Use with: curl -H 'X-API-Key: ${GENERATED_KEY}' http://localhost:8080/api/sfdc/..."
+    echo
+  fi
+
   chmod 600 "$ENV_FILE"
   ok "Infra defaults ensured (existing values in .env were not overwritten)"
 
