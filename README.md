@@ -85,49 +85,32 @@ graph TD
 
 1.  **Salesforce Setup**: Create a Connected App in your Salesforce org with OAuth 2.0 Client Credentials flow enabled. Note the Consumer Key (`client_id`) and Consumer Secret (`client_secret`).
 
-2.  **Environment Configuration**: Create a `.env` file in the root directory:
+2.  **Run the setup wizard**: the `apexium` CLI script in the project root handles environment configuration and starts the backend infrastructure for you — no manual `.env` editing needed.
     ```bash
-    # Salesforce Configuration
-    SALESFORCE_INSTANCE_ORG=https://your-instance.sandbox.my.salesforce.com
-    SALESFORCE_CLIENT_ID=your_client_id
-    SALESFORCE_CLIENT_SECRET=your_client_secret
-    SALESFORCE_GRANT_TYPE=client_credentials
-    SALESFORCE_API_VERSION=v61.0
+    chmod +x apexium
+    ./apexium start
+    ```
+    On first run (when no `.env` file exists yet), it will prompt you for your Salesforce Instance URL, Consumer Key, and Consumer Secret, fill in sensible defaults for PostgreSQL/Redis/MinIO/pgAdmin, then run `docker compose up -d --build` and wait until the backend is healthy.
 
-    # MinIO Configuration
-    MINIO_URL=http://minio:9000
-    MINIO_ACCESS_KEY=your_access_key
-    MINIO_SECRET_KEY=your_secret_key
-    MINIO_ROOT_USER=your_root_user
-    MINIO_ROOT_PASSWORD=your_root_password
-    MINIO_BUCKET_NAME=sfdc-bucket
-
-    # Database Configuration
-    DB_HOST=db
-    DB_PORT=5432
-    DB_NAME=sfdc_logs
-    DB_USER=your_db_user
-    DB_PASSWORD=your_db_pw
+    Other available commands:
+    ```bash
+    ./apexium init      # re-run the wizard and update Salesforce credentials
+    ./apexium stop       # stop the stack
+    ./apexium restart     # restart the stack
+    ./apexium logs          # tail backend logs
+    ./apexium status         # check backend health + container status
     ```
 
-3.  **Start Infrastructure** (PostgreSQL, Redis, MinIO):
-    ```bash
-    docker compose up -d --build
-    ```
+    > Prefer manual setup? You can still create `.env` yourself — see the variables `apexium` writes in [`apexium`](./apexium), or run `docker compose up -d --build` and `./mvnw spring-boot:run` directly.
 
-4.  **Run Backend**:
-    ```bash
-    ./mvnw spring-boot:run
-    ```
-
-5.  **Run Frontend** (in a separate terminal):
+3.  **Run Frontend** (in a separate terminal):
     ```bash
     cd frontend
     npm install
     npm run dev
     ```
 
-6.  Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
+4.  Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
 
 ## Monitoring & API Documentation
 
