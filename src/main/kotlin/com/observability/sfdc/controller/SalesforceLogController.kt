@@ -16,10 +16,12 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.ResponseEntity
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/sfdc/logs")
+@Validated
 @Tag(name = "Salesforce Logs", description = "Endpoints for managing and retrieving Salesforce debug logs")
 class SalesforceLogController(
     private val apexLogService: ApexLogService,
@@ -144,7 +146,7 @@ class SalesforceLogController(
 
     @PostMapping("/trace-jobs/adopt")
     @Operation(summary = "Adopt Existing Trace Flag", description = "Imports an existing Salesforce TraceFlag as a managed trace job.")
-    fun adoptTraceFlag(@RequestBody traceFlag: TraceFlagDto): TraceJob {
+    fun adoptTraceFlag(@Valid @RequestBody traceFlag: TraceFlagDto): TraceJob {
         return traceJobService.adoptExistingTraceFlag(traceFlag)
     }
 

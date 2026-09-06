@@ -62,8 +62,10 @@ data class SalesforceCreateResponse(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class TraceFlagDto(
     @JsonProperty("Id")
+    @field:NotBlank(message = "TraceFlag Id is required")
     val id: String,
     @JsonProperty("TracedEntityId")
+    @field:NotBlank(message = "TracedEntityId is required")
     val tracedEntityId: String,
     @JsonProperty("TracedEntity")
     val tracedEntity: TracedEntityDto?,

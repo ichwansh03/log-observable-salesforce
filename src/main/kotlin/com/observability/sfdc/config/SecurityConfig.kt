@@ -19,8 +19,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
-    @Value("\${apexium.api-key:}") private val apiKey: String,
-    @Value("\${apexium.cors.allowed-origins:http://localhost:5173}") private val allowedOrigins: String
+    @Value($$"${apexium.api-key:}") private val apiKey: String,
+    @Value($$"${apexium.cors.allowed-origins:http://localhost:5173}") private val allowedOrigins: String
 ) {
 
     @Bean
@@ -35,8 +35,12 @@ class SecurityConfig(
                 auth
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                     .requestMatchers("/actuator/**").authenticated()
-                    .requestMatchers("/api/sfdc/**").authenticated()
-                    .anyRequest().permitAll()
+                if (apiKey.isNotBlank()) {
+                    auth.requestMatchers("/api/sfdc/**").authenticated()
+                } else {
+                    auth.requestMatchers("/api/sfdc/**").permitAll()
+                }
+                auth.anyRequest().permitAll()
             }
             .exceptionHandling { ex ->
                 ex.authenticationEntryPoint { _, response, _ ->
