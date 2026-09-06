@@ -20,10 +20,12 @@ import com.observability.sfdc.service.MetadataHistoryService
 import com.observability.sfdc.service.ReportMetadataService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/sfdc/metadata")
+@Validated
 @Tag(name = "Salesforce Metadata", description = "Endpoints for retrieving Salesforce metadata information (Classes, Triggers, Debug Levels)")
 class SalesforceMetadataController(
     private val apexClassMetadataService: ApexClassMetadataService,

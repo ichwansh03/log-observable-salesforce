@@ -2,6 +2,7 @@ package com.observability.sfdc.exception
 
 import com.observability.sfdc.dto.ErrorResponse
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -24,6 +25,21 @@ class GlobalExceptionHandler {
     fun handleValidation(ex: MethodArgumentNotValidException, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
         val errors = ex.bindingResult.fieldErrors.associate { it.field to (it.defaultMessage ?: "Invalid") }
         logger.warn("Validation failed: {}", errors)
+        return buildResponse(
+            HttpStatus.BAD_REQUEST,
+            "VALIDATION_ERROR",
+            "Request validation failed",
+            request.requestURI,
+            errors
+        )
+    }
+
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun handleConstraintViolation(ex: ConstraintViolationException, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
+        val errors = ex.constraintViolations.associate { violation ->
+            violation.propertyPath.toString() to (violation.message)
+        }
+        logger.warn("Constraint violation: {}", errors)
         return buildResponse(
             HttpStatus.BAD_REQUEST,
             "VALIDATION_ERROR",
